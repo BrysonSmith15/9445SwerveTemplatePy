@@ -84,28 +84,6 @@ class SwerveModule(Subsystem):
         self.nettable.setDefaultNumber("turnI", 0.01)
         self.nettable.setDefaultNumber("turnD", 0.01)
 
-    def _nt_pid_listener(self, _nt, key: str, event: Event):
-        try:
-            var = key[-1]
-            if key.startswith("drive"):
-                if var == "P":
-                    self.drive_pid.setP(event.data.value.value())
-                elif var == "I":
-                    self.drive_pid.setI(event.data.value.value())
-                elif var == "D":
-                    self.drive_pid.setD(event.data.value.value())
-            elif key.startswith("turn"):
-                if var == "P":
-                    self.turn_pid.setP(event.data.value.value())
-                elif var == "I":
-                    self.turn_pid.setI(event.data.value.value())
-                elif var == "D":
-                    self.turn_pid.setD(event.data.value.value())
-            else:
-                print(f"failed at {key}")
-        except Exception:
-            pass
-
     def get_vel(self) -> float:
         """
         return the velocity in meters per second
@@ -134,9 +112,38 @@ class SwerveModule(Subsystem):
             CANSparkLowLevel.ControlType.kPosition,
         )
 
-        # print(commanded_state.speed_fps / (2 * math.pi * (1 / 6)))
+        """
+        cosine optimization - make the wheel slower when pointed the wrong direction
+        note that there in no abs over cos because cos(-x) == cos(x)
+        """
+        cos_optimizer = (commanded_state.angle - self.get_angle()).cos()
+
         self.drive_pid.setReference(
-            commanded_state.speed_fps / (2 * math.pi * (1 / 6)), CANSparkLowLevel.ControlType.kVelocity)
+            (commanded_state.speed_fps / (2 * math.pi * (1 / 6))) * cos_optimizer,
+            CANSparkLowLevel.ControlType.kVelocity
+        )
 
     def _rotation2d_to_rotations(self, angle: Rotation2d) -> float:
         return (angle.degrees() % 360) / 360
+
+    def _nt_pid_listener(self, _nt, key: str, event: Event):
+        try:
+            var = key[-1]
+            if key.startswith("drive"):
+                if var == "P":
+                    self.drive_pid.setP(event.data.value.value())
+                elif var == "I":
+                    self.drive_pid.setI(event.data.value.value())
+                elif var == "D":
+                    self.drive_pid.setD(event.data.value.value())
+                elif key.startswith("turn"):
+                    if var == "P":
+                        self.turn_pid.setP(event.data.value.value())
+                    elif var == "I":
+                        self.turn_pid.setI(event.data.value.value())
+                    elif var == "D":
+                        self.turn_pid.setD(event.data.value.value())
+                else:
+                    print(f"failed at {key}")
+        except Exception:
+            pass
