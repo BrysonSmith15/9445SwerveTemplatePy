@@ -1,0 +1,5 @@
+[robotpybuild]
+halsim_ds_socket = halsim_ds_socket.pkgcfg
+
+[robotpysimext]
+ds-socket = halsim_ds_socket

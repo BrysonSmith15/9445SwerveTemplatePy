@@ -1,0 +1,7 @@
+[robotpybuild]
+client = halsim_ws.client.pkgcfg
+server = halsim_ws.server.pkgcfg
+
+[robotpysimext]
+ws-client = halsim_ws.client
+ws-server = halsim_ws.server
