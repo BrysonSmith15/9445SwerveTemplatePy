@@ -29,8 +29,7 @@ class SwerveModule(Subsystem):
         self.setName(name)
 
         # drive
-        self.drive_motor = CANSparkMax(
-            drive_id, CANSparkLowLevel.MotorType.kBrushless)
+        self.drive_motor = CANSparkMax(drive_id, CANSparkLowLevel.MotorType.kBrushless)
 
         self.drive_encoder = self.drive_motor.getEncoder()
         self.drive_encoder.setVelocityConversionFactor(1 / 8.14)
@@ -43,8 +42,7 @@ class SwerveModule(Subsystem):
         self.drive_pid.setD(0.001)
 
         # turn
-        self.turn_motor = CANSparkMax(
-            turn_id, CANSparkLowLevel.MotorType.kBrushless)
+        self.turn_motor = CANSparkMax(turn_id, CANSparkLowLevel.MotorType.kBrushless)
 
         self.turn_encoder = self.turn_motor.getEncoder()
         self.turn_encoder.setVelocityConversionFactor(1 / 150.7)
@@ -63,18 +61,12 @@ class SwerveModule(Subsystem):
             f"swerve/{self.name}"
         )
 
-        self.nettable.addListener(
-            "driveP", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener(
-            "driveI", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener(
-            "driveD", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener(
-            "turnD", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener(
-            "turnI", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener(
-            "turnP", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener("driveP", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener("driveI", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener("driveD", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener("turnD", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener("turnI", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener("turnP", EventFlags.kValueAll, self._nt_pid_listener)
 
         # this is the real place to set the pid values
         self.nettable.setDefaultNumber("driveP", 0.01)
@@ -102,8 +94,7 @@ class SwerveModule(Subsystem):
 
     def set_state(self, commanded_state: SwerveModuleState) -> SwerveModuleState:
         # optimize the new state
-        commanded_state = SwerveModuleState.optimize(
-            commanded_state, self.get_angle())
+        commanded_state = SwerveModuleState.optimize(commanded_state, self.get_angle())
         # set the turn pid in rotations
         # (degrees % 360) / 360 => (wrap the angle from [0, 360]) / (angles per rotation)
         # above => convert degress to rotations
@@ -120,7 +111,7 @@ class SwerveModule(Subsystem):
 
         self.drive_pid.setReference(
             (commanded_state.speed_fps / (2 * math.pi * (1 / 6))) * cos_optimizer,
-            CANSparkLowLevel.ControlType.kVelocity
+            CANSparkLowLevel.ControlType.kVelocity,
         )
 
     def _rotation2d_to_rotations(self, angle: Rotation2d) -> float:

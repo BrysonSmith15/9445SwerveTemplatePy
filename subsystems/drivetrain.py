@@ -24,6 +24,7 @@ class Drivetrain(Subsystem):
         br_position = Translation2d(-inchesToMeters(12), -inchesToMeters(12))
 
         self.kinematics = SwerveDrive4Kinematics(
-            fl_position, fr_position, bl_position, br_position)
+            fl_position, fr_position, bl_position, br_position
+        )
 
         """odometry"""
