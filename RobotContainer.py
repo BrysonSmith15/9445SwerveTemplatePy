@@ -8,7 +8,7 @@ from wpimath.geometry import Rotation2d
 
 class RobotContainer:
     def __init__(self) -> None:
-        my_module = SwerveModule("fl", 5, 6, 7)
+        my_module = SwerveModule("fl", 5, 6, 7, False, False)
 
     def get_auto_command(self) -> Command:
         return Command()

@@ -13,10 +13,10 @@ class Drivetrain(Subsystem):
     def __init__(self):
         """member instantiation"""
         # TODO: Update these values
-        self.fl = SwerveModule("fl", 3, 4, 5)
-        self.fr = SwerveModule("fl", 4, 5, 6)
-        self.bl = SwerveModule("fl", 7, 8, 9)
-        self.br = SwerveModule("fl", 10, 11, 12)
+        self.fl = SwerveModule("fl", 3, 4, 5, False, False)
+        self.fr = SwerveModule("fl", 4, 5, 6, False, False)
+        self.bl = SwerveModule("fl", 7, 8, 9, False, False)
+        self.br = SwerveModule("fl", 10, 11, 12, False, False)
 
         self.gryo = NavX.fromMXP()
 
