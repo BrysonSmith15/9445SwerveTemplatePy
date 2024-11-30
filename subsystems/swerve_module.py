@@ -10,13 +10,21 @@ from commands2 import Subsystem
 
 from ntcore import NetworkTableInstance, EventFlags, Event
 
-from wpimath.kinematics import SwerveModuleState
+from wpimath.kinematics import SwerveModuleState, SwerveModulePosition
 from wpimath.units import inchesToMeters
 from wpimath.geometry import Rotation2d
 
 
 class SwerveModule(Subsystem):
-    def __init__(self, name: str, drive_id: int, turn_id: int, cancoder_id: int):
+    def __init__(
+        self,
+        name: str,
+        drive_id: int,
+        turn_id: int,
+        cancoder_id: int,
+        drive_inverted: bool,
+        turn_inverted: bool,
+    ):
         # cancoder
         self.cancoder = CANcoder(cancoder_id)
         self.cancoder.configurator.apply(
@@ -29,7 +37,9 @@ class SwerveModule(Subsystem):
         self.setName(name)
 
         # drive
-        self.drive_motor = CANSparkMax(drive_id, CANSparkLowLevel.MotorType.kBrushless)
+        self.drive_motor = CANSparkMax(
+            drive_id, CANSparkLowLevel.MotorType.kBrushless)
+        self.drive_motor.setInverted(drive_inverted)
 
         self.drive_encoder = self.drive_motor.getEncoder()
         self.drive_encoder.setVelocityConversionFactor(1 / 8.14)
@@ -42,7 +52,9 @@ class SwerveModule(Subsystem):
         self.drive_pid.setD(0.001)
 
         # turn
-        self.turn_motor = CANSparkMax(turn_id, CANSparkLowLevel.MotorType.kBrushless)
+        self.turn_motor = CANSparkMax(
+            turn_id, CANSparkLowLevel.MotorType.kBrushless)
+        self.turn_motor.setInverted(turn_inverted)
 
         self.turn_encoder = self.turn_motor.getEncoder()
         self.turn_encoder.setVelocityConversionFactor(1 / 150.7)
@@ -61,12 +73,18 @@ class SwerveModule(Subsystem):
             f"swerve/{self.name}"
         )
 
-        self.nettable.addListener("driveP", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener("driveI", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener("driveD", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener("turnD", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener("turnI", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener("turnP", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener(
+            "driveP", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener(
+            "driveI", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener(
+            "driveD", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener(
+            "turnD", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener(
+            "turnI", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener(
+            "turnP", EventFlags.kValueAll, self._nt_pid_listener)
 
         # this is the real place to set the pid values
         self.nettable.setDefaultNumber("driveP", 0.01)
@@ -85,16 +103,27 @@ class SwerveModule(Subsystem):
         """
         return self.drive_encoder.getVelocity() * 2 * math.pi * inchesToMeters(2)
 
+    def get_distance(self) -> float:
+        """return the distance driven by the swerve module since powered on"""
+        return self.drive_encoder.getPosition() * 2 * math.pi * inchesToMeters(2)
+
     def get_angle(self) -> Rotation2d:
         """return the angle of the swerve module as a Rotation2d"""
         return Rotation2d.fromRotations(self.turn_encoder.getPosition())
 
     def get_state(self) -> SwerveModuleState:
+        """return the velocity and angle of the swerve module"""
         return SwerveModuleState(self.get_vel(), self.get_angle())
 
+    def get_position(self) -> SwerveModulePosition:
+        """get the distance driven and angle of the module"""
+        return SwerveModulePosition(self.get_distance(), self.get_angle())
+
     def set_state(self, commanded_state: SwerveModuleState) -> SwerveModuleState:
+        """command the swerve module to an angle and speed"""
         # optimize the new state
-        commanded_state = SwerveModuleState.optimize(commanded_state, self.get_angle())
+        commanded_state = SwerveModuleState.optimize(
+            commanded_state, self.get_angle())
         # set the turn pid in rotations
         # (degrees % 360) / 360 => (wrap the angle from [0, 360]) / (angles per rotation)
         # above => convert degress to rotations
