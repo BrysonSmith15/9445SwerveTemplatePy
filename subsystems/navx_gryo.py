@@ -1,4 +1,4 @@
-from gryo_base import GyroBase
+from subsystems.gyro_base import GyroBase
 
 from navx import AHRS
 
@@ -16,16 +16,16 @@ class NavX(GyroBase):
     ):
         self.hardware = AHRS(serial_type)
 
-    def fromMXP() -> Self:
-        return Self.__init__(SerialPort.Port.kMXP)
+    def fromMXP():
+        return NavX(SerialPort.Port.kMXP)
 
     def fromUSB(port: int) -> Self:
         if port == 0:
-            return Self.__init__(SerialPort.Port.kUSB)
+            return NavX(SerialPort.Port.kUSB)
         elif port == 1:
-            return Self.__init__(SerialPort.Port.kUSB1)
+            return NavX(SerialPort.Port.kUSB1)
         elif port == 2:
-            return Self.__init__(SerialPort.Port.kUSB1)
+            return NavX(SerialPort.Port.kUSB1)
         else:
             raise IndexError(
                 "The roborio only has 2 usb ports. Your port can only be 1 or 2 [0]"

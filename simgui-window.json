@@ -11,7 +11,7 @@
       "userScale": "2",
       "width": "956",
       "xpos": "962",
-      "ypos": "24"
+      "ypos": "1104"
     }
   },
   "Window": {
@@ -53,7 +53,7 @@
     "###Timing": {
       "Collapsed": "0",
       "Pos": "5,150",
-      "Size": "135,150"
+      "Size": "135,173"
     },
     "Debug##Default": {
       "Collapsed": "0",

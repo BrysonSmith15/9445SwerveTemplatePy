@@ -6,8 +6,23 @@
   },
   "NetworkTables": {
     "transitory": {
+      "Drivetrain": {
+        "config": {
+          "max_angular_velocity_deg": {
+            "open": true
+          },
+          "open": true
+        },
+        "open": true,
+        "velocity": {
+          "open": true
+        }
+      },
       "swerve": {
         "fl": {
+          "State": {
+            "open": true
+          },
           "open": true
         },
         "open": true

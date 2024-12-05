@@ -88,11 +88,26 @@ class SwerveModule(Subsystem):
 
         # this is the real place to set the pid values
         self.nettable.setDefaultNumber("driveP", 0.01)
-        self.nettable.setDefaultNumber("driveI", 0.01)
+        self.nettable.setDefaultNumber("driveI", 0.00)
         self.nettable.setDefaultNumber("driveD", 0.01)
         self.nettable.setDefaultNumber("turnP", 0.01)
-        self.nettable.setDefaultNumber("turnI", 0.01)
+        self.nettable.setDefaultNumber("turnI", 0.00)
         self.nettable.setDefaultNumber("turnD", 0.01)
+
+        """misc variables"""
+        # these variables are for doing something every mod_value runs of periodic
+        self.mod_counter = 0
+        self.mod_value = 50
+
+    def periodic(self) -> None:
+        self.mod_counter = (self.mod_counter + 1) % self.mod_value
+        if self.mod_counter == 0:
+            self.turn_encoder.setPosition(
+                self.cancoder.get_absolute_position().value_as_double)
+
+        self.nettable.putNumber("State/velocity (mps)", self.get_vel())
+        self.nettable.putNumber("State/angle (deg)",
+                                self.get_angle().degrees())
 
     def get_vel(self) -> float:
         """
@@ -118,6 +133,14 @@ class SwerveModule(Subsystem):
     def get_position(self) -> SwerveModulePosition:
         """get the distance driven and angle of the module"""
         return SwerveModulePosition(self.get_distance(), self.get_angle())
+
+    def set_drive_idle(self, coast: bool) -> None:
+        self.drive_motor.setIdleMode(
+            CANSparkMax.IdleMode.kCoast if coast else CANSparkMax.IdleMode.kBrake)
+
+    def set_turn_idle(self, coast: bool) -> None:
+        self.turn_motor.setIdleMode(
+            CANSparkMax.IdleMode.kCoast if coast else CANSparkMax.IdleMode.kBrake)
 
     def set_state(self, commanded_state: SwerveModuleState) -> SwerveModuleState:
         """command the swerve module to an angle and speed"""
