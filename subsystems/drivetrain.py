@@ -176,21 +176,21 @@ class Drivetrain(Subsystem):
         get_y: typing.Callable[[], float],
         get_theta: typing.Callable[[], float],
         use_field_oriented: typing.Callable[[], bool]
-    ):
+    ) -> StartEndCommand:
         return StartEndCommand(
             lambda: self._run_chassis_speeds(
                 ChassisSpeeds.fromFieldRelativeSpeeds(
                     applyDeadband(get_x(), 0.1, 1.0) * self.max_velocity_mps,
                     applyDeadband(get_y(), 0.1, 1.0) * self.max_velocity_mps,
                     applyDeadband(get_theta(), 0.1, 1.0) *
-                    self.self.max_angular_velocity,
+                    self.max_angular_velocity,
                 ) if use_field_oriented() else ChassisSpeeds(
                     applyDeadband(get_x(), 0.1, 1.0) * self.max_velocity_mps,
                     applyDeadband(get_y(), 0.1, 1.0) * self.max_velocity_mps,
                     applyDeadband(get_theta(), 0.1, 1.0) *
-                    self.self.max_angular_velocity,
+                    self.max_angular_velocity.radians(),
                 )
             ),
-            self.stop,
+            lambda: self._run_chassis_speeds(ChassisSpeeds()),
             self
         )

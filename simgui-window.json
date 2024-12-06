@@ -11,7 +11,7 @@
       "userScale": "2",
       "width": "956",
       "xpos": "962",
-      "ypos": "1104"
+      "ypos": "24"
     }
   },
   "Window": {
@@ -23,7 +23,7 @@
     "###FMS": {
       "Collapsed": "0",
       "Pos": "5,540",
-      "Size": "283,140"
+      "Size": "169,184"
     },
     "###Joysticks": {
       "Collapsed": "0",
@@ -62,7 +62,7 @@
     },
     "Robot State": {
       "Collapsed": "0",
-      "Pos": "5,20",
+      "Pos": "5,18",
       "Size": "92,116"
     }
   }
