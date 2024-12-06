@@ -1,7 +1,7 @@
 from subsystems.swerve_module import SwerveModule
 from subsystems.navx_gryo import NavX
 
-from commands2 import Subsystem, InstantCommand, StartEndCommand, InterruptionBehavior
+from commands2 import Subsystem, InstantCommand, StartEndCommand, InterruptionBehavior, RunCommand
 
 from wpilib import Field2d
 from wpimath.geometry import Translation2d, Pose2d, Rotation2d
@@ -18,10 +18,10 @@ class Drivetrain(Subsystem):
     def __init__(self):
         """member instantiation"""
         # TODO: Update these values
-        self.fl = SwerveModule("fl", 3, 4, 5, False, False)
-        self.fr = SwerveModule("fl", 6, 7, 8, False, False)
-        self.bl = SwerveModule("fl", 9, 10, 11, False, False)
-        self.br = SwerveModule("fl", 12, 13, 14, False, False)
+        self.fl = SwerveModule("fl", 14,12 , 13, False, False)
+        self.fr = SwerveModule("fr", 11, 9, 10, False, False)
+        self.bl = SwerveModule("bl", 17, 15, 7, False, False)
+        self.br = SwerveModule("br", 8, 6, 16, False, False)
 
         self.gyro = NavX.fromMXP()
 
@@ -91,6 +91,10 @@ class Drivetrain(Subsystem):
         self.nettable.putNumber("velocity/vx (fps)", curr_speed.vx_fps)
         self.nettable.putNumber("velocity/vy (fps)", curr_speed.vy_fps)
         self.nettable.putNumber("velocity/omega (degps)", curr_speed.omega_dps)
+        if self.getCurrentCommand():
+            self.nettable.putString("Running Command", self.getCurrentCommand().getName())
+        else:
+            self.nettable.putString("Running Command", "None")
 
     """getters"""
 
@@ -156,6 +160,9 @@ class Drivetrain(Subsystem):
     def _run_chassis_speeds(self, speeds: ChassisSpeeds, center_of_rotation: Translation2d = Translation2d(0, 0)) -> None:
         states = self.kinematics.toSwerveModuleStates(
             speeds, center_of_rotation)
+        self.nettable.putNumber("commandedXVel fps", speeds.vx_fps)
+        self.nettable.putNumber("commandedYVel fps", speeds.vy_fps)
+        self.nettable.putNumber("commandedThetaVel degps", speeds.omega_dps)
 
         self._run_module_states(list(states))
 
@@ -177,20 +184,21 @@ class Drivetrain(Subsystem):
         get_theta: typing.Callable[[], float],
         use_field_oriented: typing.Callable[[], bool]
     ):
-        return StartEndCommand(
-            lambda: self._run_chassis_speeds(
+        # return StartEndCommand(
+        return RunCommand(lambda: self._run_chassis_speeds(
                 ChassisSpeeds.fromFieldRelativeSpeeds(
                     applyDeadband(get_x(), 0.1, 1.0) * self.max_velocity_mps,
                     applyDeadband(get_y(), 0.1, 1.0) * self.max_velocity_mps,
                     applyDeadband(get_theta(), 0.1, 1.0) *
-                    self.self.max_angular_velocity,
-                ) if use_field_oriented() else ChassisSpeeds(
+                    self.max_angular_velocity.radians(),
+                    self.get_angle()
+                ) if use_field_oriented() else ChassisSpeeds.fromFieldRelativeSpeeds(
                     applyDeadband(get_x(), 0.1, 1.0) * self.max_velocity_mps,
                     applyDeadband(get_y(), 0.1, 1.0) * self.max_velocity_mps,
                     applyDeadband(get_theta(), 0.1, 1.0) *
-                    self.self.max_angular_velocity,
+                    self.max_angular_velocity.radians(),
+                    self.get_angle()
                 )
             ),
-            self.stop,
-            self
-        )
+            self)
+        # )

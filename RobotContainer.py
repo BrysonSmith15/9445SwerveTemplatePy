@@ -12,10 +12,14 @@ class RobotContainer:
         self.driver_controller = Joystick(0)
         # TODO: set the bindings for the controller
         # this sets the motors to idle on disable
+        self.driver_controller.setYChannel(1)
+        self.driver_controller.setXChannel(0)
+        self.driver_controller.setTwistChannel(4)
+        self.driver_controller.setThrottleChannel(3)
         Trigger(DriverStation.isEnabled).onTrue(
-            InstantCommand(lambda: self.drivetrain.set_drive_idle(False))
+            self.drivetrain.set_drive_idle(False)
         ).onTrue(self.drivetrain.set_turn_idle(False)).onFalse(
-            InstantCommand(lambda: self.drivetrain.set_drive_idle(True))
+            self.drivetrain.set_drive_idle(True)
         ).onFalse(self.drivetrain.set_turn_idle(True))
 
     def set_teleop_bindings(self) -> None:

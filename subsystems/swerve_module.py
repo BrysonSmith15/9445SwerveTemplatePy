@@ -42,14 +42,20 @@ class SwerveModule(Subsystem):
         self.drive_motor.setInverted(drive_inverted)
 
         self.drive_encoder = self.drive_motor.getEncoder()
-        self.drive_encoder.setVelocityConversionFactor(1 / 8.14)
-        self.drive_encoder.setPositionConversionFactor(1 / 8.14)
+        self.drive_encoder.setMeasurementPeriod(20)
+        self.drive_encoder.setAverageDepth(2)
+        self.drive_encoder.setVelocityConversionFactor(-1 / 8.14)
+        self.drive_encoder.setPositionConversionFactor(-1 / 8.14 / 60)
         self.drive_encoder.setPosition(0)
 
         self.drive_pid = self.drive_motor.getPIDController()
         self.drive_pid.setP(0.01)
         self.drive_pid.setI(0)
         self.drive_pid.setD(0.001)
+        self.drive_motor.setClosedLoopRampRate(0.20)
+        self.drive_pid.setOutputRange(-1,1)
+
+        self.drive_pid.setFeedbackDevice(self.drive_encoder)
 
         # turn
         self.turn_motor = CANSparkMax(
@@ -116,7 +122,7 @@ class SwerveModule(Subsystem):
         circumfrence of a circle is 2 * pi * r.
         The wheel radius of the mk4i is 2in.
         """
-        return self.drive_encoder.getVelocity() * 2 * math.pi * inchesToMeters(2)
+        return self.drive_encoder.getVelocity() * 2 * math.pi * inchesToMeters(2) / 60
 
     def get_distance(self) -> float:
         """return the distance driven by the swerve module since powered on"""
@@ -149,7 +155,7 @@ class SwerveModule(Subsystem):
             commanded_state, self.get_angle())
         # set the turn pid in rotations
         # (degrees % 360) / 360 => (wrap the angle from [0, 360]) / (angles per rotation)
-        # above => convert degress to rotations
+        # above => convert degrees to rotations
         self.turn_pid.setReference(
             self._rotation2d_to_rotations(commanded_state.angle),
             CANSparkLowLevel.ControlType.kPosition,
@@ -160,9 +166,10 @@ class SwerveModule(Subsystem):
         note that there in no abs over cos because cos(-x) == cos(x)
         """
         cos_optimizer = (commanded_state.angle - self.get_angle()).cos()
+        self.nettable.putNumber("thing", (commanded_state.speed / (2 * math.pi * inchesToMeters(2))))
 
         self.drive_pid.setReference(
-            (commanded_state.speed_fps / (2 * math.pi * (1 / 6))) * cos_optimizer,
+            (commanded_state.speed / (2 * math.pi * inchesToMeters(2))) * cos_optimizer,
             CANSparkLowLevel.ControlType.kVelocity,
         )
 
