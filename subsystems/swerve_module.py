@@ -169,7 +169,7 @@ class SwerveModule(Subsystem):
         self.nettable.putNumber("thing", commanded_state.speed)
 
         self.drive_pid.setReference(
-            (commanded_state.speed * cos_optimizer,
+            (commanded_state.speed * cos_optimizer),
             CANSparkLowLevel.ControlType.kVelocity,
         )
 

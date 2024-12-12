@@ -25,7 +25,7 @@ class Drivetrain(Subsystem):
 
         self.gyro = NavX.fromMXP()
 
-        self.max_velocity_mps = feetToMeters(5)
+        self.max_velocity_mps = feetToMeters(4)
         self.max_angular_velocity = Rotation2d.fromDegrees(90)
 
         """nettables"""
