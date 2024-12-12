@@ -44,8 +44,8 @@ class SwerveModule(Subsystem):
         self.drive_encoder = self.drive_motor.getEncoder()
         self.drive_encoder.setMeasurementPeriod(20)
         self.drive_encoder.setAverageDepth(2)
-        self.drive_encoder.setVelocityConversionFactor(-1 / 8.14)
-        self.drive_encoder.setPositionConversionFactor(-1 / 8.14 / 60)
+        self.drive_encoder.setVelocityConversionFactor((2 * math.pi * inchesToMeters(2)) / (8.14 * 60))
+        self.drive_encoder.setPositionConversionFactor((2 * math.pi) * inchesToMeters(2) / 8.14)
         self.drive_encoder.setPosition(0)
 
         self.drive_pid = self.drive_motor.getPIDController()
@@ -64,7 +64,7 @@ class SwerveModule(Subsystem):
 
         self.turn_encoder = self.turn_motor.getEncoder()
         self.turn_encoder.setVelocityConversionFactor(1 / 150.7)
-        self.turn_encoder.setPositionConversionFactor(1 / 150.7)
+        self.turn_encoder.setPositionConversionFactor(1 / (150.7 * 60))
         self.turn_encoder.setPosition(
             self.cancoder.get_absolute_position().value_as_double
         )
@@ -122,15 +122,15 @@ class SwerveModule(Subsystem):
         circumfrence of a circle is 2 * pi * r.
         The wheel radius of the mk4i is 2in.
         """
-        return self.drive_encoder.getVelocity() * 2 * math.pi * inchesToMeters(2) / 60
+        return self.drive_encoder.getVelocity()
 
     def get_distance(self) -> float:
         """return the distance driven by the swerve module since powered on"""
-        return self.drive_encoder.getPosition() * 2 * math.pi * inchesToMeters(2)
+        return self.drive_encoder.getPosition()
 
     def get_angle(self) -> Rotation2d:
         """return the angle of the swerve module as a Rotation2d"""
-        return Rotation2d.fromRotations(self.turn_encoder.getPosition())
+        return Rotation2d.fromDegrees(self.turn_encoder.getPosition() * 180 / math.pi)
 
     def get_state(self) -> SwerveModuleState:
         """return the velocity and angle of the swerve module"""
@@ -166,10 +166,10 @@ class SwerveModule(Subsystem):
         note that there in no abs over cos because cos(-x) == cos(x)
         """
         cos_optimizer = (commanded_state.angle - self.get_angle()).cos()
-        self.nettable.putNumber("thing", (commanded_state.speed / (2 * math.pi * inchesToMeters(2))))
+        self.nettable.putNumber("thing", commanded_state.speed)
 
         self.drive_pid.setReference(
-            (commanded_state.speed / (2 * math.pi * inchesToMeters(2))) * cos_optimizer,
+            (commanded_state.speed * cos_optimizer,
             CANSparkLowLevel.ControlType.kVelocity,
         )
 
