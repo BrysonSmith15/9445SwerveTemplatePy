@@ -1,9 +1,10 @@
 from subsystems.swerve_module import SwerveModule
 from subsystems.navx_gryo import NavX
+from subsystems.sim_gyro import SimGyro
 
 from commands2 import Subsystem, InstantCommand, StartEndCommand, InterruptionBehavior, RunCommand
 
-from wpilib import Field2d
+from wpilib import Field2d, RobotBase
 from wpimath.geometry import Translation2d, Pose2d, Rotation2d
 from wpimath.units import inchesToMeters, feetToMeters, metersToFeet
 from wpimath.kinematics import SwerveDrive4Kinematics, SwerveDrive4Odometry, SwerveModulePosition, ChassisSpeeds, SwerveModuleState
@@ -23,7 +24,10 @@ class Drivetrain(Subsystem):
         self.bl = SwerveModule("bl", 17, 15, 7, False, False)
         self.br = SwerveModule("br", 8, 6, 16, False, False)
 
-        self.gyro = NavX.fromMXP()
+        if RobotBase.isReal():
+            self.gyro = NavX.fromMXP()
+        else:
+            self.gyro = SimGyro()
 
         self.max_velocity_mps = feetToMeters(4)
         self.max_angular_velocity = Rotation2d.fromDegrees(90)
