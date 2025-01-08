@@ -1,10 +1,10 @@
 import math
 
-from rev import CANSparkMax, CANSparkLowLevel
+from rev import SparkMax, SparkLowLevel, SparkMaxConfig, SparkBase, EncoderConfig
 
 from phoenix6.hardware import CANcoder
-from phoenix6.configs import MagnetSensorConfigs
-from phoenix6.signals import SensorDirectionValue, AbsoluteSensorRangeValue
+from phoenix6.configs.config_groups import MagnetSensorConfigs
+from phoenix6.signals import SensorDirectionValue
 
 from commands2 import Subsystem
 
@@ -30,36 +30,44 @@ class SwerveModule(Subsystem):
         self.cancoder.configurator.apply(
             MagnetSensorConfigs()
             .with_sensor_direction(SensorDirectionValue.CLOCKWISE_POSITIVE)
-            .with_absolute_sensor_range(AbsoluteSensorRangeValue.SIGNED_PLUS_MINUS_HALF)
+            .with_absolute_sensor_discontinuity_point(1)
         )
 
         self.name = name
         self.setName(name)
 
         # drive
-        self.drive_motor = CANSparkMax(
-            drive_id, CANSparkLowLevel.MotorType.kBrushless)
-        self.drive_motor.setInverted(drive_inverted)
-
+        self.drive_motor = SparkMax(drive_id, SparkLowLevel.MotorType.kBrushless)
         self.drive_encoder = self.drive_motor.getEncoder()
-        self.drive_encoder.setMeasurementPeriod(20)
-        self.drive_encoder.setAverageDepth(2)
-        self.drive_encoder.setVelocityConversionFactor((2 * math.pi * inchesToMeters(2)) / (8.14 * 60))
-        self.drive_encoder.setPositionConversionFactor((2 * math.pi) * inchesToMeters(2) / 8.14)
+
+        self.drive_motor_config = SparkMaxConfig()
+        self.drive_motor_config.inverted(drive_inverted).encoder.velocityConversionFactor(
+            (2 * math.pi * inchesToMeters(2)) / (8.14 * 60)
+        ).positionConversionFactor(
+            (2 * math.pi) * inchesToMeters(2) / 8.14
+        )
+
         self.drive_encoder.setPosition(0)
 
-        self.drive_pid = self.drive_motor.getPIDController()
+
+        self.drive_motor.configure(
+            self.drive_motor_config,
+            SparkBase.ResetMode.kNoResetSafeParameters,
+            SparkBase.PersistMode.kPersistParameters,
+        )
+
+
+        self.drive_pid = self.drive_motor.getClosedLoopController()
         self.drive_pid.setP(0.01)
         self.drive_pid.setI(0)
         self.drive_pid.setD(0.001)
         self.drive_motor.setClosedLoopRampRate(0.20)
-        self.drive_pid.setOutputRange(-1,1)
+        self.drive_pid.setOutputRange(-1, 1)
 
         self.drive_pid.setFeedbackDevice(self.drive_encoder)
 
         # turn
-        self.turn_motor = CANSparkMax(
-            turn_id, CANSparkLowLevel.MotorType.kBrushless)
+        self.turn_motor = SparkMax(turn_id, SparkLowLevel.MotorType.kBrushless)
         self.turn_motor.setInverted(turn_inverted)
 
         self.turn_encoder = self.turn_motor.getEncoder()
@@ -79,18 +87,12 @@ class SwerveModule(Subsystem):
             f"swerve/{self.name}"
         )
 
-        self.nettable.addListener(
-            "driveP", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener(
-            "driveI", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener(
-            "driveD", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener(
-            "turnD", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener(
-            "turnI", EventFlags.kValueAll, self._nt_pid_listener)
-        self.nettable.addListener(
-            "turnP", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener("driveP", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener("driveI", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener("driveD", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener("turnD", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener("turnI", EventFlags.kValueAll, self._nt_pid_listener)
+        self.nettable.addListener("turnP", EventFlags.kValueAll, self._nt_pid_listener)
 
         # this is the real place to set the pid values
         self.nettable.setDefaultNumber("driveP", 0.01)
@@ -109,11 +111,11 @@ class SwerveModule(Subsystem):
         self.mod_counter = (self.mod_counter + 1) % self.mod_value
         if self.mod_counter == 0:
             self.turn_encoder.setPosition(
-                self.cancoder.get_absolute_position().value_as_double)
+                self.cancoder.get_absolute_position().value_as_double
+            )
 
         self.nettable.putNumber("State/velocity (mps)", self.get_vel())
-        self.nettable.putNumber("State/angle (deg)",
-                                self.get_angle().degrees())
+        self.nettable.putNumber("State/angle (deg)", self.get_angle().degrees())
 
     def get_vel(self) -> float:
         """
@@ -142,23 +144,24 @@ class SwerveModule(Subsystem):
 
     def set_drive_idle(self, coast: bool) -> None:
         self.drive_motor.setIdleMode(
-            CANSparkMax.IdleMode.kCoast if coast else CANSparkMax.IdleMode.kBrake)
+            SparkMax.IdleMode.kCoast if coast else SparkMax.IdleMode.kBrake
+        )
 
     def set_turn_idle(self, coast: bool) -> None:
         self.turn_motor.setIdleMode(
-            CANSparkMax.IdleMode.kCoast if coast else CANSparkMax.IdleMode.kBrake)
+            SparkMax.IdleMode.kCoast if coast else SparkMax.IdleMode.kBrake
+        )
 
     def set_state(self, commanded_state: SwerveModuleState) -> SwerveModuleState:
         """command the swerve module to an angle and speed"""
         # optimize the new state
-        commanded_state = SwerveModuleState.optimize(
-            commanded_state, self.get_angle())
+        commanded_state = SwerveModuleState.optimize(commanded_state, self.get_angle())
         # set the turn pid in rotations
         # (degrees % 360) / 360 => (wrap the angle from [0, 360]) / (angles per rotation)
         # above => convert degrees to rotations
         self.turn_pid.setReference(
             self._rotation2d_to_rotations(commanded_state.angle),
-            CANSparkLowLevel.ControlType.kPosition,
+            SparkLowLevel.ControlType.kPosition,
         )
 
         """
@@ -170,7 +173,7 @@ class SwerveModule(Subsystem):
 
         self.drive_pid.setReference(
             (commanded_state.speed * cos_optimizer),
-            CANSparkLowLevel.ControlType.kVelocity,
+            SparkLowLevel.ControlType.kVelocity,
         )
 
     def _rotation2d_to_rotations(self, angle: Rotation2d) -> float:
