@@ -2,15 +2,27 @@ from subsystems.swerve_module import SwerveModule
 from subsystems.navx_gryo import NavX
 from subsystems.sim_gyro import SimGyro
 
-from commands2 import Subsystem, InstantCommand, StartEndCommand, InterruptionBehavior, RunCommand
+from commands2 import (
+    Subsystem,
+    InstantCommand,
+    StartEndCommand,
+    InterruptionBehavior,
+    RunCommand,
+)
 
 from wpilib import Field2d, RobotBase
 from wpimath.geometry import Translation2d, Pose2d, Rotation2d
 from wpimath.units import inchesToMeters, feetToMeters, metersToFeet
-from wpimath.kinematics import SwerveDrive4Kinematics, SwerveDrive4Odometry, SwerveModulePosition, ChassisSpeeds, SwerveModuleState
+from wpimath.kinematics import (
+    SwerveDrive4Kinematics,
+    SwerveDrive4Odometry,
+    SwerveModulePosition,
+    ChassisSpeeds,
+    SwerveModuleState,
+)
 from wpimath import applyDeadband
 
-from ntcore import NetworkTableInstance, EventFlags
+from ntcore import NetworkTable, NetworkTableInstance, EventFlags, ValueEventData, Event
 
 import typing
 
@@ -19,7 +31,7 @@ class Drivetrain(Subsystem):
     def __init__(self):
         """member instantiation"""
         # TODO: Update these values
-        self.fl = SwerveModule("fl", 14,12 , 13, False, False)
+        self.fl = SwerveModule("fl", 14, 12, 13, False, False)
         self.fr = SwerveModule("fr", 11, 9, 10, False, False)
         self.bl = SwerveModule("bl", 17, 15, 7, False, False)
         self.br = SwerveModule("br", 8, 6, 16, False, False)
@@ -35,14 +47,25 @@ class Drivetrain(Subsystem):
         """nettables"""
         self.nettable = NetworkTableInstance.getDefault().getTable("Drivetrain")
         self.nettable.putNumber(
-            "config/max_velocity_fps", metersToFeet(self.max_velocity_mps))
+            "config/max_velocity_fps", metersToFeet(self.max_velocity_mps)
+        )
         self.nettable.putNumber(
-            "config/max_angular_velocity_degps", self.max_angular_velocity.degrees())
-        # TODO: setattr is bad. Fix it probably with a full function. Could be nested in __init__
-        self.nettable.addListener("max_velocity_fps", EventFlags.kValueAll, lambda _, __, ev: setattr(
-            self, "max_velocity_mps", feetToMeters(ev.data.value.value())))
-        self.nettable.addListener("max_angular_velocity_degps", EventFlags.kValueAll, lambda _, __, ev: setattr(
-            self, "max_angular_velocity", Rotation2d.fromDegrees(ev.data.value.value())))
+            "config/max_angular_velocity_degps", self.max_angular_velocity.degrees()
+        )
+
+        def nettable_listener(_nt: NetworkTable, key: str, ev: Event):
+            if isinstance(v := ev.data, ValueEventData):
+                if key == "max_velocity_fps":
+                    self.max_velocity_mps = feetToMeters(v.value.value())
+                elif key == "max_angular_velocity_degps":
+                    self.max_angular_velocity = Rotation2d.fromDegrees(v.value.value())
+
+        self.nettable.addListener(
+            "max_velocity_fps", EventFlags.kValueAll, nettable_listener
+        )
+        self.nettable.addListener(
+            "max_angular_velocity_degps", EventFlags.kValueAll, nettable_listener
+        )
 
         self.field = Field2d()
         # these should be changed when actually using the field
@@ -80,8 +103,8 @@ class Drivetrain(Subsystem):
                 self.fl.get_position(),
                 self.fr.get_position(),
                 self.bl.get_position(),
-                self.br.get_position()
-            )
+                self.br.get_position(),
+            ),
         )
 
         curr_speed = self.kinematics.toChassisSpeeds(
@@ -89,14 +112,14 @@ class Drivetrain(Subsystem):
                 self.fl.get_state(),
                 self.fr.get_state(),
                 self.bl.get_state(),
-                self.br.get_state()
+                self.br.get_state(),
             )
         )
         self.nettable.putNumber("velocity/vx (fps)", curr_speed.vx_fps)
         self.nettable.putNumber("velocity/vy (fps)", curr_speed.vy_fps)
         self.nettable.putNumber("velocity/omega (degps)", curr_speed.omega_dps)
-        if self.getCurrentCommand():
-            self.nettable.putString("Running Command", self.getCurrentCommand().getName())
+        if c := self.getCurrentCommand():
+            self.nettable.putString("Running Command", c.getName())
         else:
             self.nettable.putString("Running Command", "None")
 
@@ -115,20 +138,31 @@ class Drivetrain(Subsystem):
     def get_angle(self) -> Rotation2d:
         return self.gyro.get_angle()
 
-    def get_module_positions(self) -> typing.Tuple[SwerveModulePosition, SwerveModulePosition, SwerveModulePosition, SwerveModulePosition]:
+    def get_module_positions(
+        self,
+    ) -> typing.Tuple[
+        SwerveModulePosition,
+        SwerveModulePosition,
+        SwerveModulePosition,
+        SwerveModulePosition,
+    ]:
         return (
             self.fl.get_position(),
             self.fr.get_position(),
             self.bl.get_position(),
-            self.br.get_position()
+            self.br.get_position(),
         )
 
-    def get_module_states(self) -> typing.Tuple[SwerveModuleState, SwerveModuleState, SwerveModuleState, SwerveModuleState]:
+    def get_module_states(
+        self,
+    ) -> typing.Tuple[
+        SwerveModuleState, SwerveModuleState, SwerveModuleState, SwerveModuleState
+    ]:
         return (
             self.fl.get_state(),
             self.fr.get_state(),
             self.bl.get_state(),
-            self.br.get_state()
+            self.br.get_state(),
         )
 
     def get_speeds(self) -> ChassisSpeeds:
@@ -136,12 +170,18 @@ class Drivetrain(Subsystem):
 
     """setters"""
 
-    def reset_gyro(self, new_angle: Rotation2d = Rotation2d.fromDegrees(0)) -> InstantCommand:
+    def reset_gyro(
+        self, new_angle: Rotation2d = Rotation2d.fromDegrees(0)
+    ) -> InstantCommand:
         return InstantCommand(lambda: self.gyro.reset(new_angle), self)
 
     def reset_pose(self, pose: Pose2d) -> InstantCommand:
-        return InstantCommand(lambda: self.odometry.resetPosition(
-            self.get_angle(), self.get_module_positions(), pose), self)
+        return InstantCommand(
+            lambda: self.odometry.resetPosition(
+                self.get_angle(), self.get_module_positions(), pose
+            ),
+            self,
+        )
 
     def _set_drive_idle(self, coast: bool) -> None:
         self.fl.set_drive_idle(coast)
@@ -161,18 +201,25 @@ class Drivetrain(Subsystem):
     def set_turn_idle(self, coast: bool) -> InstantCommand:
         return InstantCommand(lambda: self._set_turn_idle(coast), self)
 
-    def _run_chassis_speeds(self, speeds: ChassisSpeeds, center_of_rotation: Translation2d = Translation2d(0, 0)) -> None:
-        states = self.kinematics.toSwerveModuleStates(
-            speeds, center_of_rotation)
+    def _run_chassis_speeds(
+        self,
+        speeds: ChassisSpeeds,
+        center_of_rotation: Translation2d = Translation2d(0, 0),
+    ) -> None:
+        states = self.kinematics.toSwerveModuleStates(speeds, center_of_rotation)
         self.nettable.putNumber("commandedXVel fps", speeds.vx_fps)
         self.nettable.putNumber("commandedYVel fps", speeds.vy_fps)
         self.nettable.putNumber("commandedThetaVel degps", speeds.omega_dps)
 
-        self._run_module_states(list(states))
+        self._run_module_states(states)
 
-    def _run_module_states(self, states: typing.List[SwerveModuleState]) -> None:
-        states = self.kinematics.desaturateWheelSpeeds(
-            states, self.max_velocity_mps)
+    def _run_module_states(
+        self,
+        states: tuple[
+            SwerveModuleState, SwerveModuleState, SwerveModuleState, SwerveModuleState
+        ],
+    ) -> None:
+        states = self.kinematics.desaturateWheelSpeeds(states, self.max_velocity_mps)
         self.fl.set_state(states[0])
         self.fr.set_state(states[1])
         self.bl.set_state(states[2])
@@ -186,23 +233,27 @@ class Drivetrain(Subsystem):
         get_x: typing.Callable[[], float],
         get_y: typing.Callable[[], float],
         get_theta: typing.Callable[[], float],
-        use_field_oriented: typing.Callable[[], bool]
+        use_field_oriented: typing.Callable[[], bool],
     ):
         # return StartEndCommand(
-        return RunCommand(lambda: self._run_chassis_speeds(
+        return RunCommand(
+            lambda: self._run_chassis_speeds(
                 ChassisSpeeds.fromFieldRelativeSpeeds(
                     applyDeadband(get_x(), 0.1, 1.0) * self.max_velocity_mps,
                     applyDeadband(get_y(), 0.1, 1.0) * self.max_velocity_mps,
-                    applyDeadband(get_theta(), 0.1, 1.0) *
-                    self.max_angular_velocity.radians(),
-                    self.get_angle()
-                ) if use_field_oriented() else ChassisSpeeds.fromFieldRelativeSpeeds(
+                    applyDeadband(get_theta(), 0.1, 1.0)
+                    * self.max_angular_velocity.radians(),
+                    self.get_angle(),
+                )
+                if use_field_oriented()
+                else ChassisSpeeds.fromFieldRelativeSpeeds(
                     applyDeadband(get_x(), 0.1, 1.0) * self.max_velocity_mps,
                     applyDeadband(get_y(), 0.1, 1.0) * self.max_velocity_mps,
-                    applyDeadband(get_theta(), 0.1, 1.0) *
-                    self.max_angular_velocity.radians(),
-                    self.get_angle()
+                    applyDeadband(get_theta(), 0.1, 1.0)
+                    * self.max_angular_velocity.radians(),
+                    self.get_angle(),
                 )
             ),
-            self)
+            self,
+        )
         # )
