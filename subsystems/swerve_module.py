@@ -1,6 +1,6 @@
 import math
 
-from rev import SparkMax, SparkLowLevel, SparkMaxConfig, SparkBase, EncoderConfig
+from rev import SparkBaseConfig, SparkMax, SparkLowLevel, SparkMaxConfig, SparkBase
 
 from phoenix6.hardware import CANcoder
 from phoenix6.configs.config_groups import MagnetSensorConfigs
@@ -8,7 +8,7 @@ from phoenix6.signals import SensorDirectionValue
 
 from commands2 import Subsystem
 
-from ntcore import NetworkTableInstance, EventFlags, Event
+from ntcore import NetworkTableInstance, EventFlags, Event, ValueEventData
 
 from wpimath.kinematics import SwerveModuleState, SwerveModulePosition
 from wpimath.units import inchesToMeters
@@ -39,16 +39,20 @@ class SwerveModule(Subsystem):
         # drive
         self.drive_motor = SparkMax(drive_id, SparkLowLevel.MotorType.kBrushless)
         self.drive_encoder = self.drive_motor.getEncoder()
+        self.drive_pid = self.drive_motor.getClosedLoopController()
 
         self.drive_motor_config = SparkMaxConfig()
-        self.drive_motor_config.inverted(drive_inverted).encoder.velocityConversionFactor(
+        self.drive_motor_config.inverted(
+            drive_inverted
+        ).encoder.velocityConversionFactor(
             (2 * math.pi * inchesToMeters(2)) / (8.14 * 60)
         ).positionConversionFactor(
             (2 * math.pi) * inchesToMeters(2) / 8.14
         )
 
-        self.drive_encoder.setPosition(0)
+        self.drive_motor_config.closedLoop.P(0.01).I(0).D(0.001)
 
+        self.drive_encoder.setPosition(0)
 
         self.drive_motor.configure(
             self.drive_motor_config,
@@ -56,31 +60,26 @@ class SwerveModule(Subsystem):
             SparkBase.PersistMode.kPersistParameters,
         )
 
-
-        self.drive_pid = self.drive_motor.getClosedLoopController()
-        self.drive_pid.setP(0.01)
-        self.drive_pid.setI(0)
-        self.drive_pid.setD(0.001)
-        self.drive_motor.setClosedLoopRampRate(0.20)
-        self.drive_pid.setOutputRange(-1, 1)
-
-        self.drive_pid.setFeedbackDevice(self.drive_encoder)
-
         # turn
         self.turn_motor = SparkMax(turn_id, SparkLowLevel.MotorType.kBrushless)
-        self.turn_motor.setInverted(turn_inverted)
-
+        self.turn_pid = self.turn_motor.getClosedLoopController()
         self.turn_encoder = self.turn_motor.getEncoder()
-        self.turn_encoder.setVelocityConversionFactor(1 / 150.7)
-        self.turn_encoder.setPositionConversionFactor(1 / (150.7 * 60))
+        self.turn_motor_config = SparkMaxConfig()
+        self.turn_motor_config.inverted(turn_inverted).encoder.positionConversionFactor(
+            1 / 150.7
+        ).velocityConversionFactor(1 / (150.7 * 60))
+
         self.turn_encoder.setPosition(
             self.cancoder.get_absolute_position().value_as_double
         )
 
-        self.turn_pid = self.turn_motor.getPIDController()
-        self.turn_pid.setP(0.01)
-        self.turn_pid.setI(0)
-        self.turn_pid.setD(0.001)
+        self.turn_motor_config.closedLoop.P(0.01).I(0).D(0.001)
+
+        self.turn_motor.configure(
+            self.turn_motor_config,
+            SparkBase.ResetMode.kNoResetSafeParameters,
+            SparkBase.PersistMode.kPersistParameters,
+        )
 
         # networktables
         self.nettable = NetworkTableInstance.getDefault().getTable(
@@ -94,13 +93,24 @@ class SwerveModule(Subsystem):
         self.nettable.addListener("turnI", EventFlags.kValueAll, self._nt_pid_listener)
         self.nettable.addListener("turnP", EventFlags.kValueAll, self._nt_pid_listener)
 
-        # this is the real place to set the pid values
-        self.nettable.setDefaultNumber("driveP", 0.01)
-        self.nettable.setDefaultNumber("driveI", 0.00)
-        self.nettable.setDefaultNumber("driveD", 0.01)
-        self.nettable.setDefaultNumber("turnP", 0.01)
-        self.nettable.setDefaultNumber("turnI", 0.00)
-        self.nettable.setDefaultNumber("turnD", 0.01)
+        self.nettable.setDefaultNumber(
+            "driveP", self.drive_motor.configAccessor.closedLoop.getP()
+        )
+        self.nettable.setDefaultNumber(
+            "driveI", self.drive_motor.configAccessor.closedLoop.getI()
+        )
+        self.nettable.setDefaultNumber(
+            "driveD", self.drive_motor.configAccessor.closedLoop.getD()
+        )
+        self.nettable.setDefaultNumber(
+            "turnP", self.turn_motor.configAccessor.closedLoop.getP()
+        )
+        self.nettable.setDefaultNumber(
+            "turnI", self.turn_motor.configAccessor.closedLoop.getI()
+        )
+        self.nettable.setDefaultNumber(
+            "turnD", self.turn_motor.configAccessor.closedLoop.getD()
+        )
 
         """misc variables"""
         # these variables are for doing something every mod_value runs of periodic
@@ -143,19 +153,26 @@ class SwerveModule(Subsystem):
         return SwerveModulePosition(self.get_distance(), self.get_angle())
 
     def set_drive_idle(self, coast: bool) -> None:
-        self.drive_motor.setIdleMode(
-            SparkMax.IdleMode.kCoast if coast else SparkMax.IdleMode.kBrake
+        self.drive_motor_config.setIdleMode(
+            SparkBaseConfig.IdleMode.kCoast
+            if coast
+            else SparkBaseConfig.IdleMode.kBrake
         )
+        self._configure_drive()
 
     def set_turn_idle(self, coast: bool) -> None:
-        self.turn_motor.setIdleMode(
-            SparkMax.IdleMode.kCoast if coast else SparkMax.IdleMode.kBrake
+        self.turn_motor_config.setIdleMode(
+            SparkBaseConfig.IdleMode.kCoast
+            if coast
+            else SparkBaseConfig.IdleMode.kBrake
         )
+        self._configure_turn()
 
-    def set_state(self, commanded_state: SwerveModuleState) -> SwerveModuleState:
+    def set_state(self, commanded_state: SwerveModuleState) -> None:
         """command the swerve module to an angle and speed"""
         # optimize the new state
-        commanded_state = SwerveModuleState.optimize(commanded_state, self.get_angle())
+        # this just mutates commanded_state in place
+        commanded_state.optimize(self.get_angle())
         # set the turn pid in rotations
         # (degrees % 360) / 360 => (wrap the angle from [0, 360]) / (angles per rotation)
         # above => convert degrees to rotations
@@ -182,21 +199,38 @@ class SwerveModule(Subsystem):
     def _nt_pid_listener(self, _nt, key: str, event: Event):
         try:
             var = key[-1]
-            if key.startswith("drive"):
-                if var == "P":
-                    self.drive_pid.setP(event.data.value.value())
-                elif var == "I":
-                    self.drive_pid.setI(event.data.value.value())
-                elif var == "D":
-                    self.drive_pid.setD(event.data.value.value())
+            if isinstance((v := event.data), ValueEventData):
+                if key.startswith("drive"):
+                    if var == "P":
+                        self.drive_motor_config.closedLoop.P(v.value.value())
+                    elif var == "I":
+                        self.drive_motor_config.closedLoop.I(v.value.value())
+                    elif var == "D":
+                        self.drive_motor_config.closedLoop.D(v.value.value())
+                    self._configure_drive()
                 elif key.startswith("turn"):
                     if var == "P":
-                        self.turn_pid.setP(event.data.value.value())
+                        self.turn_motor_config.closedLoop.P(v.value.value())
                     elif var == "I":
-                        self.turn_pid.setI(event.data.value.value())
+                        self.turn_motor_config.closedLoop.I(v.value.value())
                     elif var == "D":
-                        self.turn_pid.setD(event.data.value.value())
+                        self.turn_motor_config.closedLoop.D(v.value.value())
+                    self._configure_turn()
                 else:
                     print(f"failed at {key}")
         except Exception:
             pass
+
+    def _configure_drive(self) -> None:
+        self.drive_motor.configure(
+            self.drive_motor_config,
+            SparkBase.ResetMode.kNoResetSafeParameters,
+            SparkBase.PersistMode.kNoPersistParameters,
+        )
+
+    def _configure_turn(self) -> None:
+        self.turn_motor.configure(
+            self.turn_motor_config,
+            SparkBase.ResetMode.kNoResetSafeParameters,
+            SparkBase.PersistMode.kNoPersistParameters,
+        )
