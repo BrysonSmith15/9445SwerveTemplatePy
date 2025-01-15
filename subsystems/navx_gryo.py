@@ -12,20 +12,18 @@ from typing import Self
 class NavX(GyroBase):
     def __init__(
         self,
-        serial_type: SerialPort,
+        serial_type: AHRS.NavXComType,
     ):
         self.hardware = AHRS(serial_type)
 
     def fromMXP():
-        return NavX(SerialPort.Port.kMXP)
+        return NavX(AHRS.NavXComType.kMXP_UART)
 
     def fromUSB(port: int) -> Self:
-        if port == 0:
-            return NavX(SerialPort.Port.kUSB)
-        elif port == 1:
-            return NavX(SerialPort.Port.kUSB1)
+        if port == 1:
+            return NavX(AHRS.NavXComType.kUSB1)
         elif port == 2:
-            return NavX(SerialPort.Port.kUSB1)
+            return NavX(AHRS.NavXComType.kUSB2)
         else:
             raise IndexError(
                 "The roborio only has 2 usb ports. Your port can only be 1 or 2 [0]"

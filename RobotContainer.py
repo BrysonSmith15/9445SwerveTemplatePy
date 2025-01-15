@@ -18,7 +18,8 @@ class RobotContainer:
         self.driver_controller.setThrottleChannel(3)
         Trigger(DriverStation.isEnabled).onTrue(
             self.drivetrain.set_drive_idle(False)
-        ).onTrue(self.drivetrain.set_turn_idle(False)).onFalse(
+        ).onTrue(self.drivetrain.set_turn_idle(False))
+        Trigger(DriverStation.isEnabled).onFalse(
             self.drivetrain.set_drive_idle(True)
         ).onFalse(self.drivetrain.set_turn_idle(True))
 

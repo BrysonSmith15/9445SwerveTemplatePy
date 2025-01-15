@@ -30,16 +30,15 @@ import typing
 class Drivetrain(Subsystem):
     def __init__(self):
         """member instantiation"""
-        # TODO: Update these values
-        self.fl = SwerveModule("fl", 14, 12, 13, False, False)
-        self.fr = SwerveModule("fr", 11, 9, 10, False, False)
-        self.bl = SwerveModule("bl", 17, 15, 7, False, False)
-        self.br = SwerveModule("br", 8, 6, 16, False, False)
+        self.fl = SwerveModule("fl", 6, 8, 7, False, False)
+        self.fr = SwerveModule("fr", 17, 15, 16, False, False)
+        self.bl = SwerveModule("bl", 9, 11, 10, False, False)
+        self.br = SwerveModule("br", 12, 14, 13, False, False)
 
-        if RobotBase.isReal():
-            self.gyro = NavX.fromMXP()
-        else:
-            self.gyro = SimGyro()
+        # if RobotBase.isReal():
+        #     self.gyro = NavX.fromMXP()
+        # else:
+        self.gyro = SimGyro()
 
         self.max_velocity_mps = feetToMeters(4)
         self.max_angular_velocity = Rotation2d.fromDegrees(90)
