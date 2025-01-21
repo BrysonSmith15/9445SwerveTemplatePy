@@ -25,13 +25,12 @@ class SwerveModule(Subsystem):
         cancoder_id: int,
         drive_inverted: bool,
         turn_inverted: bool,
-        max_turn_speed: float = 0.75,
     ):
         # cancoder
         self.cancoder = CANcoder(cancoder_id)
         self.cancoder.configurator.apply(
             MagnetSensorConfigs()
-            .with_sensor_direction(SensorDirectionValue.COUNTER_CLOCKWISE_POSITIVE)
+            .with_sensor_direction(SensorDirectionValue.CLOCKWISE_POSITIVE)
             .with_absolute_sensor_discontinuity_point(0.5)
         )
 
@@ -42,7 +41,7 @@ class SwerveModule(Subsystem):
         self.drive_motor = SparkMax(drive_id, SparkLowLevel.MotorType.kBrushless)
         self.drive_encoder = self.drive_motor.getEncoder()
         # self.drive_pid = self.drive_motor.getClosedLoopController()
-        self.drive_pid = PIDController(0.9, 0, 0.1)
+        self.drive_pid = PIDController(0.2, 0, 0.00)
 
         self.drive_motor_config = SparkMaxConfig()
         self.drive_motor_config.inverted(drive_inverted)
@@ -68,21 +67,20 @@ class SwerveModule(Subsystem):
         """
         the range of error for this controller is [-0.25, 0.25] 
         """
-        self.turn_pid = PIDController(4 * max_turn_speed, 0, 0.5)
+        self.turn_pid = PIDController(0.01, 0, 0.0)
         self.turn_encoder = self.turn_motor.getEncoder()
         self.turn_motor_config = SparkMaxConfig()
-        # self.turn_motor_config.inverted(turn_inverted).encoder.positionConversionFactor(
+        self.turn_motor_config.inverted(turn_inverted)
+        # .encoder.positionConversionFactor(
         #     (7 / 150)
         # ).velocityConversionFactor(7 / (150 * 60))
-
-        self.turn_motor_config.inverted(turn_inverted)
 
         self.turn_encoder.setPosition(
             self.cancoder.get_absolute_position().value_as_double
         )
 
         # self.turn_motor_config.closedLoop.P(0.01).I(0).D(0.001).positionWrappingEnabled(True).positionWrappingInputRange(0, 1)
-        self.turn_pid.enableContinuousInput(-0.5, 0.5)
+        self.turn_pid.enableContinuousInput(0, 360)
 
         self.turn_motor.configure(
             self.turn_motor_config,
@@ -102,12 +100,12 @@ class SwerveModule(Subsystem):
         self.nettable.addListener("turnI", EventFlags.kValueAll, self._nt_pid_listener)
         self.nettable.addListener("turnP", EventFlags.kValueAll, self._nt_pid_listener)
 
-        self.nettable.setDefaultNumber("driveP", self.drive_pid.getP())
-        self.nettable.setDefaultNumber("driveI", self.drive_pid.getI())
-        self.nettable.setDefaultNumber("driveD", self.drive_pid.getD())
-        self.nettable.setDefaultNumber("turnP", self.turn_pid.getP())
-        self.nettable.setDefaultNumber("turnI", self.turn_pid.getI())
-        self.nettable.setDefaultNumber("turnD", self.turn_pid.getD())
+        self.nettable.putNumber("driveP", self.drive_pid.getP())
+        self.nettable.putNumber("driveI", self.drive_pid.getI())
+        self.nettable.putNumber("driveD", self.drive_pid.getD())
+        self.nettable.putNumber("turnP", self.turn_pid.getP())
+        self.nettable.putNumber("turnI", self.turn_pid.getI())
+        self.nettable.putNumber("turnD", self.turn_pid.getD())
 
         """misc variables"""
         # these variables are for doing something every mod_value runs of periodic
@@ -138,8 +136,9 @@ class SwerveModule(Subsystem):
 
         circumfrence of a circle is 2 * pi * r.
         The wheel radius of the mk4i is 2in.
+        The gear ratio of the mk4i is 8.14:1
         """
-        return self.drive_encoder.getVelocity()
+        return self.drive_encoder.getVelocity() * 2 * math.pi * inchesToMeters(2) * 8.14
 
     def get_distance(self) -> float:
         """return the distance driven by the swerve module since powered on"""
@@ -147,7 +146,8 @@ class SwerveModule(Subsystem):
 
     def get_angle(self) -> Rotation2d:
         """return the angle of the swerve module as a Rotation2d"""
-        return Rotation2d.fromRotations(self.turn_encoder.getPosition())
+        return Rotation2d.fromRotations(self.cancoder.get_absolute_position().value_as_double)
+        # return Rotation2d.fromRotations(self.turn_encoder.getPosition())
 
     def get_state(self) -> SwerveModuleState:
         """return the velocity and angle of the swerve module"""
@@ -160,7 +160,7 @@ class SwerveModule(Subsystem):
     def set_drive_idle(self, coast: bool) -> None:
         self.drive_motor_config.setIdleMode(
             SparkBaseConfig.IdleMode.kCoast
-            if coast
+            if not coast
             else SparkBaseConfig.IdleMode.kBrake
         )
         self._configure_drive()
@@ -168,7 +168,7 @@ class SwerveModule(Subsystem):
     def set_turn_idle(self, coast: bool) -> None:
         self.turn_motor_config.setIdleMode(
             SparkBaseConfig.IdleMode.kCoast
-            if coast
+            if not coast
             else SparkBaseConfig.IdleMode.kBrake
         )
         self._configure_turn()
@@ -186,17 +186,17 @@ class SwerveModule(Subsystem):
         #     SparkLowLevel.ControlType.kPosition,
         # )
         self.nettable.putNumber(
-            "Commanded/Rotations",
-            self._rotation2d_to_rotations(commanded_state.angle),
+            "Commanded/Angle (deg)",
+            commanded_state.angle.degrees()
         )
 
         turn_speed = self.turn_pid.calculate(
-            self.cancoder.get_absolute_position().value_as_double,
-            self._rotation2d_to_rotations(commanded_state.angle),
+            self.get_angle().degrees(),
+            commanded_state.angle.degrees()
         )
+        self.nettable.putNumber("State/Turn Speed (%)", turn_speed)
         turn_speed = 1 if turn_speed > 1 else -1 if turn_speed < -1 else turn_speed
         # speed = 1 if speed > 1 else -1 if speed < 1 else speed
-        self.nettable.putNumber("State/Turn Speed (%)", turn_speed)
         self.turn_motor.set(turn_speed)
 
         """
@@ -237,7 +237,6 @@ class SwerveModule(Subsystem):
                     elif var == "D":
                         # self.drive_motor_config.closedLoop.D(v.value.value())
                         self.drive_pid.setD(v.value.value())
-                    self._configure_drive()
                 elif key.startswith("turn"):
                     if var == "P":
                         # self.turn_motor_config.closedLoop.P(v.value.value())
