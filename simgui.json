@@ -20,6 +20,9 @@
       },
       "swerve": {
         "fl": {
+          "Commanded": {
+            "open": true
+          },
           "State": {
             "open": true
           },
@@ -28,8 +31,5 @@
         "open": true
       }
     }
-  },
-  "NetworkTables Info": {
-    "visible": true
   }
 }
