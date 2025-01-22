@@ -31,7 +31,7 @@ class Drivetrain(Subsystem):
     def __init__(self):
         """member instantiation"""
         self.fl = SwerveModule("fl", 6, 8, 7, False, False)
-        self.fr = SwerveModule("fr", 15, 17, 16, False, False)
+        self.fr = SwerveModule("fr", 15, 17, 16, True, False)
         self.bl = SwerveModule("bl", 9, 11, 10, False, False)
         self.br = SwerveModule("br", 12, 14, 13, False, False)
 
