@@ -57,7 +57,7 @@ class SwerveModule(Subsystem):
 
         self.drive_motor.configure(
             self.drive_motor_config,
-            SparkBase.ResetMode.kNoResetSafeParameters,
+            SparkBase.ResetMode.kResetSafeParameters,
             SparkBase.PersistMode.kPersistParameters,
         )
 
@@ -75,17 +75,17 @@ class SwerveModule(Subsystem):
         #     (7 / 150)
         # ).velocityConversionFactor(7 / (150 * 60))
 
-        self.turn_encoder.setPosition(
-            self.cancoder.get_absolute_position().value_as_double
-        )
+        # self.turn_encoder.setPosition(
+        #     self.cancoder.get_absolute_position().value_as_double
+        # )
 
         # self.turn_motor_config.closedLoop.P(0.01).I(0).D(0.001).positionWrappingEnabled(True).positionWrappingInputRange(0, 1)
-        self.turn_pid.enableContinuousInput(0, 360)
+        self.turn_pid.enableContinuousInput(-0.5, 0.5)
 
         self.turn_motor.configure(
             self.turn_motor_config,
             SparkBase.ResetMode.kNoResetSafeParameters,
-            SparkBase.PersistMode.kPersistParameters,
+            SparkBase.PersistMode.kNoPersistParameters,
         )
 
         # networktables
@@ -138,16 +138,17 @@ class SwerveModule(Subsystem):
         The wheel radius of the mk4i is 2in.
         The gear ratio of the mk4i is 8.14:1
         """
-        return self.drive_encoder.getVelocity() * 2 * math.pi * inchesToMeters(2) * 8.14
+        return self.drive_encoder.getVelocity() * 2 * math.pi * inchesToMeters(2) * 8.14 / 4096
 
     def get_distance(self) -> float:
         """return the distance driven by the swerve module since powered on"""
         return self.drive_encoder.getPosition()
 
     def get_angle(self) -> Rotation2d:
-        """return the angle of the swerve module as a Rotation2d"""
-        return Rotation2d.fromRotations(self.cancoder.get_absolute_position().value_as_double)
-        # return Rotation2d.fromRotations(self.turn_encoder.getPosition())
+        """return the angle of the swerve module as a Rotation2d
+        This does not work
+        """
+        return Rotation2d.fromDegrees(self.cancoder.get_absolute_position().value_as_double * 360)
 
     def get_state(self) -> SwerveModuleState:
         """return the velocity and angle of the swerve module"""
@@ -178,13 +179,7 @@ class SwerveModule(Subsystem):
         # optimize the new state
         # this just mutates commanded_state in place
         commanded_state.optimize(self.get_angle())
-        # set the turn pid in rotations
-        # (degrees % 360) / 360 => (wrap the angle from [0, 360]) / (angles per rotation)
-        # above => convert degrees to rotations
-        # self.turn_pid.setReference(
-        #     self._rotation2d_to_rotations(commanded_state.angle),
-        #     SparkLowLevel.ControlType.kPosition,
-        # )
+
         self.nettable.putNumber(
             "Commanded/Angle (deg)",
             commanded_state.angle.degrees()
@@ -192,6 +187,7 @@ class SwerveModule(Subsystem):
 
         turn_speed = self.turn_pid.calculate(
             self.get_angle().degrees(),
+            # self.cancoder.get_absolute_position().value_as_double,
             commanded_state.angle.degrees()
         )
         self.nettable.putNumber("State/Turn Speed (%)", turn_speed)

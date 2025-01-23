@@ -17,7 +17,7 @@ class NavX(GyroBase):
         self.hardware = AHRS(serial_type)
 
     def fromMXP():
-        return NavX(AHRS.NavXComType.kMXP_UART)
+        return NavX(AHRS.NavXComType.kMXP_SPI)
 
     def fromUSB(port: int) -> Self:
         if port == 1:
