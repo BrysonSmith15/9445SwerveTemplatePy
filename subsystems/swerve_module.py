@@ -1,4 +1,5 @@
 import math
+import time
 
 from rev import SparkBaseConfig, SparkMax, SparkLowLevel, SparkMaxConfig, SparkBase
 
@@ -15,6 +16,12 @@ from wpimath.units import inchesToMeters
 from wpimath.geometry import Rotation2d
 from wpimath.controller import PIDController
 
+module_offsets = {
+    "fl": 0.423583984375,
+    "fr": 0.37451171875,
+    "bl": 0.34521484375,
+    "br": 0.140869140625,
+}
 
 class SwerveModule(Subsystem):
     def __init__(
@@ -30,9 +37,15 @@ class SwerveModule(Subsystem):
         self.cancoder = CANcoder(cancoder_id)
         self.cancoder.configurator.apply(
             MagnetSensorConfigs()
-            .with_sensor_direction(SensorDirectionValue.CLOCKWISE_POSITIVE)
+            .with_sensor_direction(SensorDirectionValue.COUNTER_CLOCKWISE_POSITIVE)
             .with_absolute_sensor_discontinuity_point(0.5)
+            .with_magnet_offset(module_offsets[name])
         )
+
+        self.cancoder.optimize_bus_utilization()
+        self.cancoder.get_absolute_position().set_update_frequency(200)
+
+        time.sleep(0.1)
 
         self.name = name
         self.setName(name)
@@ -55,6 +68,8 @@ class SwerveModule(Subsystem):
 
         self.drive_encoder.setPosition(0)
 
+        self.drive_motor_config.signals.absoluteEncoderPositionAlwaysOn(False).analogVoltageAlwaysOn(False)
+
         self.drive_motor.configure(
             self.drive_motor_config,
             SparkBase.ResetMode.kResetSafeParameters,
@@ -67,8 +82,8 @@ class SwerveModule(Subsystem):
         """
         the range of error for this controller is [-0.25, 0.25] 
         """
-        self.turn_pid = PIDController(0.01, 0, 0.0)
-        self.turn_encoder = self.turn_motor.getEncoder()
+        self.turn_pid = PIDController(0.01, 0, 0)
+        # self.turn_encoder = self.turn_motor.getEncoder()
         self.turn_motor_config = SparkMaxConfig()
         self.turn_motor_config.inverted(turn_inverted)
         # .encoder.positionConversionFactor(
@@ -80,7 +95,7 @@ class SwerveModule(Subsystem):
         # )
 
         # self.turn_motor_config.closedLoop.P(0.01).I(0).D(0.001).positionWrappingEnabled(True).positionWrappingInputRange(0, 1)
-        self.turn_pid.enableContinuousInput(-0.5, 0.5)
+        self.turn_pid.enableContinuousInput(-180, 180)
 
         self.turn_motor.configure(
             self.turn_motor_config,
@@ -125,10 +140,10 @@ class SwerveModule(Subsystem):
             "State/cancoder position (rotation)",
             self.cancoder.get_absolute_position().value_as_double,
         )
-        self.nettable.putNumber(
-            "State/turn neo encoder position (rotation)",
-            self.turn_encoder.getPosition(),
-        )
+        # self.nettable.putNumber(
+        #     "State/turn neo encoder position (rotation)",
+        #     self.turn_encoder.getPosition(),
+        # )
 
     def get_vel(self) -> float:
         """
@@ -175,19 +190,22 @@ class SwerveModule(Subsystem):
         self._configure_turn()
 
     def set_state(self, commanded_state: SwerveModuleState) -> None:
+        if self.name != "fr":
+            return
         """command the swerve module to an angle and speed"""
         # optimize the new state
         # this just mutates commanded_state in place
-        commanded_state.optimize(self.get_angle())
+        # commanded_state.optimize(self.get_angle())
 
         self.nettable.putNumber(
             "Commanded/Angle (deg)",
             commanded_state.angle.degrees()
         )
 
+        self.nettable.putNumber("State/turn error", -self.get_angle().degrees() + commanded_state.angle.degrees())
+
         turn_speed = self.turn_pid.calculate(
             self.get_angle().degrees(),
-            # self.cancoder.get_absolute_position().value_as_double,
             commanded_state.angle.degrees()
         )
         self.nettable.putNumber("State/Turn Speed (%)", turn_speed)
