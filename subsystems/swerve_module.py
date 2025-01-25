@@ -15,7 +15,7 @@ from wpimath.kinematics import SwerveModuleState, SwerveModulePosition
 from wpimath.units import inchesToMeters, meters_per_second, meters_per_second_squared
 from wpimath.geometry import Rotation2d
 from wpimath.controller import PIDController, ProfiledPIDController
-from wpimath.trajectory import TrapezoidProfile 
+from wpimath.trajectory import TrapezoidProfile
 
 module_offsets = {
     "fl": 0.08544921875,
@@ -23,6 +23,7 @@ module_offsets = {
     "bl": 0.15283203125,
     "br": -0.140625,
 }
+
 
 class SwerveModule(Subsystem):
     def __init__(
@@ -33,8 +34,8 @@ class SwerveModule(Subsystem):
         cancoder_id: int,
         drive_inverted: bool,
         turn_inverted: bool,
-        max_velocity: meters_per_second , 
-        max_accel: meters_per_second_squared 
+        max_velocity: meters_per_second,
+        max_accel: meters_per_second_squared,
     ):
         # cancoder
         self.cancoder = CANcoder(cancoder_id)
@@ -58,10 +59,12 @@ class SwerveModule(Subsystem):
         self.drive_encoder = self.drive_motor.getEncoder()
         # self.drive_pid = self.drive_motor.getClosedLoopController()
         # self.drive_pid = PIDController(0.2, 0, 0.00)
-        self.drive_pid = ProfiledPIDController(0.2, 0, 0, TrapezoidProfile.Constraints(max_velocity, max_accel))
+        self.drive_pid = ProfiledPIDController(
+            0.2, 0, 0, TrapezoidProfile.Constraints(max_velocity, max_accel)
+        )
 
         self.drive_motor_config = SparkMaxConfig()
-        self.drive_motor_config.inverted(drive_inverted)
+        self.drive_motor_config.inverted(drive_inverted).smartCurrentLimit(30, 10)
         # .encoder.velocityConversionFactor(
         #     (2 * math.pi * inchesToMeters(2)) / (8.14 * 60)
         # ).positionConversionFactor(
@@ -72,7 +75,9 @@ class SwerveModule(Subsystem):
 
         self.drive_encoder.setPosition(0)
 
-        self.drive_motor_config.signals.absoluteEncoderPositionAlwaysOn(False).analogVoltageAlwaysOn(False)
+        self.drive_motor_config.signals.absoluteEncoderPositionAlwaysOn(
+            False
+        ).analogVoltageAlwaysOn(False)
 
         self.drive_motor.configure(
             self.drive_motor_config,
@@ -87,10 +92,12 @@ class SwerveModule(Subsystem):
         the range of error for this controller is [-0.25, 0.25] 
         """
         # self.turn_pid = PIDController(0.01, 0, 0)
-        self.turn_pid = ProfiledPIDController(0.01, 0, 0, TrapezoidProfile.Constraints(360, 3600))
+        self.turn_pid = ProfiledPIDController(
+            0.01, 0, 0, TrapezoidProfile.Constraints(360, 3600)
+        )
         # self.turn_encoder = self.turn_motor.getEncoder()
         self.turn_motor_config = SparkMaxConfig()
-        self.turn_motor_config.inverted(turn_inverted)
+        self.turn_motor_config.inverted(turn_inverted).smartCurrentLimit(20, 10)
         # .encoder.positionConversionFactor(
         #     (7 / 150)
         # ).velocityConversionFactor(7 / (150 * 60))
@@ -158,7 +165,14 @@ class SwerveModule(Subsystem):
         The wheel radius of the mk4i is 2in.
         The gear ratio of the mk4i is 8.14:1
         """
-        return self.drive_encoder.getVelocity() * 2 * math.pi * inchesToMeters(2) * 8.14 / 4096
+        return (
+            self.drive_encoder.getVelocity()
+            * 2
+            * math.pi
+            * inchesToMeters(2)
+            * 8.14
+            / 4096
+        )
 
     def get_distance(self) -> float:
         """return the distance driven by the swerve module since powered on"""
@@ -168,7 +182,9 @@ class SwerveModule(Subsystem):
         """return the angle of the swerve module as a Rotation2d
         This does not work
         """
-        return Rotation2d.fromDegrees(self.cancoder.get_absolute_position().value_as_double * 360)
+        return Rotation2d.fromDegrees(
+            self.cancoder.get_absolute_position().value_as_double * 360
+        )
 
     def get_state(self) -> SwerveModuleState:
         """return the velocity and angle of the swerve module"""
@@ -202,15 +218,16 @@ class SwerveModule(Subsystem):
         commanded_state.optimize(self.get_angle())
 
         self.nettable.putNumber(
-            "Commanded/Angle (deg)",
-            commanded_state.angle.degrees()
+            "Commanded/Angle (deg)", commanded_state.angle.degrees()
         )
 
-        self.nettable.putNumber("State/turn error", -self.get_angle().degrees() + commanded_state.angle.degrees())
+        self.nettable.putNumber(
+            "State/turn error",
+            -self.get_angle().degrees() + commanded_state.angle.degrees(),
+        )
 
         turn_speed = self.turn_pid.calculate(
-            self.get_angle().degrees(),
-            commanded_state.angle.degrees()
+            self.get_angle().degrees(), commanded_state.angle.degrees()
         )
         self.nettable.putNumber("State/Turn Speed (%)", turn_speed)
         turn_speed = 1 if turn_speed > 1 else -1 if turn_speed < -1 else turn_speed
