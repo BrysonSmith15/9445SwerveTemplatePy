@@ -32,6 +32,7 @@ import typing
 
 from subsystems.vision import Vision
 
+
 class Drivetrain(Subsystem):
     def __init__(self):
         """member instantiation"""
@@ -39,22 +40,29 @@ class Drivetrain(Subsystem):
         self.max_angular_velocity = Rotation2d.fromDegrees(180)
 
         max_accel = self.max_velocity_mps * 4
-        
-        self.fl = SwerveModule("fl", 6, 8, 7, False, True, self.max_velocity_mps, max_accel)
-        self.fr = SwerveModule("fr", 15, 17, 16, False, True, self.max_velocity_mps, max_accel)
-        self.bl = SwerveModule("bl", 9, 11, 10, False, True, self.max_velocity_mps, max_accel)
-        self.br = SwerveModule("br", 12, 14, 13, False, True, self.max_velocity_mps, max_accel)
+
+        self.fl = SwerveModule(
+            "fl", 6, 8, 7, False, True, self.max_velocity_mps, max_accel
+        )
+        self.fr = SwerveModule(
+            "fr", 15, 17, 16, False, True, self.max_velocity_mps, max_accel
+        )
+        self.bl = SwerveModule(
+            "bl", 9, 11, 10, False, True, self.max_velocity_mps, max_accel
+        )
+        self.br = SwerveModule(
+            "br", 12, 14, 13, False, True, self.max_velocity_mps, max_accel
+        )
 
         self.x_pid = PIDController(0.05, 0, 0)
         self.y_pid = PIDController(0.05, 0, 0)
-        self.d_pid = PIDController(0.05, 0, 0)
+        self.t_pid = PIDController(0.05, 0, 0)
 
         if RobotBase.isReal():
             # self.gyro = NavX.fromMXP()
             self.gyro = NavX.fromUSB(1)
         else:
             self.gyro = SimGyro()
-
 
         """nettables"""
         self.nettable = NetworkTableInstance.getDefault().getTable("Drivetrain")
@@ -71,14 +79,50 @@ class Drivetrain(Subsystem):
                     self.max_velocity_mps = feetToMeters(v.value.value())
                 elif key == "max_angular_velocity_degps":
                     self.max_angular_velocity = Rotation2d.fromDegrees(v.value.value())
+                elif key[1:].startswith("PID"):
+                    const = key.split("/")[0]
+                    pid = key[0]
+                    if pid == "x":
+                        if const == "p":
+                            self.x_pid.setP(v.value.value())
+                        elif const == "i":
+                            self.x_pid.setI(v.value.value())
+                        elif const == "d":
+                            self.x_pid.setD(v.value.value())
+                    elif pid == "y":
+                        if const == "p":
+                            self.y_pid.setP(v.value.value())
+                        elif const == "i":
+                            self.y_pid.setI(v.value.value())
+                        elif const == "d":
+                            self.y_pid.setD(v.value.value())
+                    elif pid == "t":
+                        if const == "p":
+                            self.t_pid.setP(v.value.value())
+                        elif const == "i":
+                            self.t_pid.setI(v.value.value())
+                        elif const == "d":
+                            self.t_pid.setD(v.value.value())
 
         self.nettable.addListener(
             "max_velocity_fps", EventFlags.kValueAll, nettable_listener
         )
+
         self.nettable.addListener(
             "max_angular_velocity_degps", EventFlags.kValueAll, nettable_listener
         )
 
+        self.nettable.addListener("xPID/P", EventFlags.kValueAll, nettable_listener)
+        self.nettable.addListener("xPID/I", EventFlags.kValueAll, nettable_listener)
+        self.nettable.addListener("xPID/D", EventFlags.kValueAll, nettable_listener)
+
+        self.nettable.addListener("yPID/P", EventFlags.kValueAll, nettable_listener)
+        self.nettable.addListener("yPID/I", EventFlags.kValueAll, nettable_listener)
+        self.nettable.addListener("yPID/D", EventFlags.kValueAll, nettable_listener)
+
+        self.nettable.addListener("tPID/P", EventFlags.kValueAll, nettable_listener)
+        self.nettable.addListener("tPID/I", EventFlags.kValueAll, nettable_listener)
+        self.nettable.addListener("tPID/D", EventFlags.kValueAll, nettable_listener)
         self.field = Field2d()
         # these should be changed when actually using the field
         self.field.setRobotPose(Pose2d(10, 10, 0))
@@ -106,7 +150,7 @@ class Drivetrain(Subsystem):
                 self.bl.get_position(),
                 self.br.get_position(),
             ),
-            Pose2d.fromFeet(10, 10, Rotation2d.fromDegrees(0))
+            Pose2d.fromFeet(10, 10, Rotation2d.fromDegrees(0)),
         )
 
         self.vision = Vision()
@@ -143,7 +187,6 @@ class Drivetrain(Subsystem):
             self.nettable.putString("Running Command", c.getName())
         else:
             self.nettable.putString("Running Command", "None")
-
 
     """getters"""
 
@@ -277,4 +320,14 @@ class Drivetrain(Subsystem):
                 )
             ),
             self,
+        )
+
+    def drive_position(self, position: Translation2d) -> RunCommand:
+        return self.drive_joystick(
+            lambda: self.x_pid.calculate(self.get_pose().X(), position.X()),
+            lambda: self.y_pid.calculate(self.get_pose().Y(), position.X()),
+            lambda: self.t_pid.calculate(
+                self.get_angle().degrees(), position.angle().degrees()
+            ),
+            lambda: True,
         )
