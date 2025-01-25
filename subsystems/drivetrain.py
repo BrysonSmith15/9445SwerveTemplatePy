@@ -16,17 +16,21 @@ from wpimath.units import inchesToMeters, feetToMeters, metersToFeet
 from wpimath.controller import PIDController
 from wpimath.kinematics import (
     SwerveDrive4Kinematics,
-    SwerveDrive4Odometry,
     SwerveModulePosition,
     ChassisSpeeds,
     SwerveModuleState,
 )
+
+from wpimath.estimator import SwerveDrive4PoseEstimator
+
 from wpimath import applyDeadband
 
 from ntcore import NetworkTable, NetworkTableInstance, EventFlags, ValueEventData, Event
 
 import typing
 
+
+from subsystems.vision import Vision
 
 class Drivetrain(Subsystem):
     def __init__(self):
@@ -93,7 +97,7 @@ class Drivetrain(Subsystem):
         )
 
         """odometry"""
-        self.odometry = SwerveDrive4Odometry(
+        self.odometry = SwerveDrive4PoseEstimator(
             self.kinematics,
             self.gyro.get_angle(),
             (
@@ -102,7 +106,10 @@ class Drivetrain(Subsystem):
                 self.bl.get_position(),
                 self.br.get_position(),
             ),
+            Pose2d.fromFeet(10, 10, Rotation2d.fromDegrees(0))
         )
+
+        self.vision = Vision()
 
     def periodic(self) -> None:
         position = self.odometry.update(
@@ -114,6 +121,8 @@ class Drivetrain(Subsystem):
                 self.br.get_position(),
             ),
         )
+
+        self.vision.update_position(self.odometry)
 
         curr_speed = self.kinematics.toChassisSpeeds(
             (
@@ -134,6 +143,7 @@ class Drivetrain(Subsystem):
             self.nettable.putString("Running Command", c.getName())
         else:
             self.nettable.putString("Running Command", "None")
+
 
     """getters"""
 
