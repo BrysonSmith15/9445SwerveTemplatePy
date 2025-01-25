@@ -12,15 +12,16 @@ from commands2 import Subsystem
 from ntcore import NetworkTableInstance, EventFlags, Event, ValueEventData
 
 from wpimath.kinematics import SwerveModuleState, SwerveModulePosition
-from wpimath.units import inchesToMeters
+from wpimath.units import inchesToMeters, meters_per_second, meters_per_second_squared
 from wpimath.geometry import Rotation2d
-from wpimath.controller import PIDController
+from wpimath.controller import PIDController, ProfiledPIDController
+from wpimath.trajectory import TrapezoidProfile 
 
 module_offsets = {
-    "fl": 0.423583984375,
-    "fr": 0.37451171875,
-    "bl": 0.34521484375,
-    "br": 0.140869140625,
+    "fl": 0.08544921875,
+    "fr": -0.37451171875,
+    "bl": 0.15283203125,
+    "br": -0.140625,
 }
 
 class SwerveModule(Subsystem):
@@ -32,6 +33,8 @@ class SwerveModule(Subsystem):
         cancoder_id: int,
         drive_inverted: bool,
         turn_inverted: bool,
+        max_velocity: meters_per_second , 
+        max_accel: meters_per_second_squared 
     ):
         # cancoder
         self.cancoder = CANcoder(cancoder_id)
@@ -54,7 +57,8 @@ class SwerveModule(Subsystem):
         self.drive_motor = SparkMax(drive_id, SparkLowLevel.MotorType.kBrushless)
         self.drive_encoder = self.drive_motor.getEncoder()
         # self.drive_pid = self.drive_motor.getClosedLoopController()
-        self.drive_pid = PIDController(0.2, 0, 0.00)
+        # self.drive_pid = PIDController(0.2, 0, 0.00)
+        self.drive_pid = ProfiledPIDController(0.2, 0, 0, TrapezoidProfile.Constraints(max_velocity, max_accel))
 
         self.drive_motor_config = SparkMaxConfig()
         self.drive_motor_config.inverted(drive_inverted)
@@ -82,7 +86,8 @@ class SwerveModule(Subsystem):
         """
         the range of error for this controller is [-0.25, 0.25] 
         """
-        self.turn_pid = PIDController(0.01, 0, 0)
+        # self.turn_pid = PIDController(0.01, 0, 0)
+        self.turn_pid = ProfiledPIDController(0.01, 0, 0, TrapezoidProfile.Constraints(360, 3600))
         # self.turn_encoder = self.turn_motor.getEncoder()
         self.turn_motor_config = SparkMaxConfig()
         self.turn_motor_config.inverted(turn_inverted)
@@ -190,12 +195,11 @@ class SwerveModule(Subsystem):
         self._configure_turn()
 
     def set_state(self, commanded_state: SwerveModuleState) -> None:
-        if self.name != "fr":
-            return
         """command the swerve module to an angle and speed"""
         # optimize the new state
         # this just mutates commanded_state in place
-        # commanded_state.optimize(self.get_angle())
+        # commanded_state.angle = commanded_state.angle + Rotation2d.fromDegrees(90)
+        commanded_state.optimize(self.get_angle())
 
         self.nettable.putNumber(
             "Commanded/Angle (deg)",

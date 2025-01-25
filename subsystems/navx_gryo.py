@@ -17,7 +17,7 @@ class NavX(GyroBase):
         self.hardware = AHRS(serial_type)
 
     def fromMXP():
-        return NavX(AHRS.NavXComType.kMXP_SPI)
+        return NavX(AHRS.NavXComType.kMXP_UART)
 
     def fromUSB(port: int) -> Self:
         if port == 1:
@@ -30,7 +30,7 @@ class NavX(GyroBase):
             )
 
     def get_angle(self):
-        return self.hardware.getRotation2d()
+        return self.hardware.getRotation2d() + Rotation2d.fromDegrees(90)
 
     def reset(self, new_angle: Rotation2d = Rotation2d.fromDegrees(0)) -> None:
         self.hardware.reset()

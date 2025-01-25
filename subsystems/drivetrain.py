@@ -13,6 +13,7 @@ from commands2 import (
 from wpilib import Field2d, RobotBase
 from wpimath.geometry import Translation2d, Pose2d, Rotation2d
 from wpimath.units import inchesToMeters, feetToMeters, metersToFeet
+from wpimath.controller import PIDController
 from wpimath.kinematics import (
     SwerveDrive4Kinematics,
     SwerveDrive4Odometry,
@@ -30,18 +31,26 @@ import typing
 class Drivetrain(Subsystem):
     def __init__(self):
         """member instantiation"""
-        self.fl = SwerveModule("fl", 6, 8, 7, False, True)
-        self.fr = SwerveModule("fr", 15, 17, 16, True, True)
-        self.bl = SwerveModule("bl", 9, 11, 10, False, True)
-        self.br = SwerveModule("br", 12, 14, 13, False, True)
+        self.max_velocity_mps = feetToMeters(10)
+        self.max_angular_velocity = Rotation2d.fromDegrees(180)
+
+        max_accel = self.max_velocity_mps * 4
+        
+        self.fl = SwerveModule("fl", 6, 8, 7, False, True, self.max_velocity_mps, max_accel)
+        self.fr = SwerveModule("fr", 15, 17, 16, False, True, self.max_velocity_mps, max_accel)
+        self.bl = SwerveModule("bl", 9, 11, 10, False, True, self.max_velocity_mps, max_accel)
+        self.br = SwerveModule("br", 12, 14, 13, False, True, self.max_velocity_mps, max_accel)
+
+        self.x_pid = PIDController(0.05, 0, 0)
+        self.y_pid = PIDController(0.05, 0, 0)
+        self.d_pid = PIDController(0.05, 0, 0)
 
         if RobotBase.isReal():
-            self.gyro = NavX.fromMXP()
+            # self.gyro = NavX.fromMXP()
+            self.gyro = NavX.fromUSB(1)
         else:
             self.gyro = SimGyro()
 
-        self.max_velocity_mps = feetToMeters(4)
-        self.max_angular_velocity = Rotation2d.fromDegrees(90)
 
         """nettables"""
         self.nettable = NetworkTableInstance.getDefault().getTable("Drivetrain")
@@ -96,7 +105,7 @@ class Drivetrain(Subsystem):
         )
 
     def periodic(self) -> None:
-        self.odometry.update(
+        position = self.odometry.update(
             self.gyro.get_angle(),
             (
                 self.fl.get_position(),
@@ -117,6 +126,10 @@ class Drivetrain(Subsystem):
         self.nettable.putNumber("velocity/vx (fps)", curr_speed.vx_fps)
         self.nettable.putNumber("velocity/vy (fps)", curr_speed.vy_fps)
         self.nettable.putNumber("velocity/omega (degps)", curr_speed.omega_dps)
+
+        self.nettable.putNumber("state/x (ft)", position.x_feet)
+        self.nettable.putNumber("state/y (ft)", position.x_feet)
+        self.nettable.putNumber("state/theta (deg)", self.get_angle().degrees())
         if c := self.getCurrentCommand():
             self.nettable.putString("Running Command", c.getName())
         else:

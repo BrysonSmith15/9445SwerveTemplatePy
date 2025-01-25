@@ -26,9 +26,9 @@ class RobotContainer:
     def set_teleop_bindings(self) -> None:
         self.drivetrain.setDefaultCommand(
             self.drivetrain.drive_joystick(
-                lambda: self.driver_controller.getY(),
-                lambda: -self.driver_controller.getX(),
-                self.driver_controller.getTwist,
+                lambda: self.driver_controller.getX(),
+                lambda: -self.driver_controller.getY(),
+                lambda: -self.driver_controller.getTwist(),
                 # this assumes that -1 is resting and 1 is full
                 lambda: self.driver_controller.getThrottle() > 0,
             )
