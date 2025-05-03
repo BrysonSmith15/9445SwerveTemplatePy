@@ -1,0 +1,147 @@
+from subsystems.swerve_module import SwerveModule, ModuleLocation
+
+from typing import Callable
+
+from commands2 import Subsystem
+
+from wpimath.kinematics import (
+    SwerveDrive4Kinematics,
+    SwerveModulePosition,
+    ChassisSpeeds,
+    SwerveModuleState,
+)
+from wpimath.estimator import SwerveDrive4PoseEstimator
+from wpimath.geometry import Pose2d, Rotation2d
+from wpimath.units import feetToMeters, degreesToRadians
+
+from wpilib import Field2d, DriverStation, RobotBase
+
+from navx import AHRS
+
+from ntcore.util import ntproperty
+from ntcore import NetworkTableInstance
+
+
+class Drivetrain(Subsystem):
+    max_speed = ntproperty("max_speed", feetToMeters(10))
+    max_angular_speed = ntproperty("max_angular_speed", degreesToRadians(270))
+
+    def __init__(
+        self,
+        should_flip: Callable[[], bool] = lambda: DriverStation.getAlliance()
+        == DriverStation.Alliance.kRed,
+    ):
+        super().__init__()
+
+        self.fl = SwerveModule(ModuleLocation.FRONT_LEFT)
+        self.fr = SwerveModule(ModuleLocation.FRONT_RIGHT)
+        self.bl = SwerveModule(ModuleLocation.BACK_LEFT)
+        self.br = SwerveModule(ModuleLocation.BACK_RIGHT)
+
+        self.gyro = AHRS(AHRS.NavXComType.kMXP_UART)
+
+        self.kinematics = SwerveDrive4Kinematics(
+            self.fl.get_from_center(),
+            self.fr.get_from_center(),
+            self.bl.get_from_center(),
+            self.br.get_from_center(),
+        )
+
+        self.odometry = SwerveDrive4PoseEstimator(
+            self.kinematics,
+            self.gyro.getRotation2d(),
+            self.get_module_positions(),
+            Pose2d(),
+        )
+
+        self.should_flip = should_flip
+
+        # self.field = Field2d()
+        # SmartDashboard.putData(self.field)
+        # SmartDashboard.putData(self)
+        # SmartDashboard.putData(self.gyro)
+
+        self.setpoint = ChassisSpeeds()
+
+        self.nettable = NetworkTableInstance.getDefault().getTable("/Drivetrain")
+
+        self.swerve_pub = self.nettable.getStructArrayTopic(
+            "SwerveStates", SwerveModuleState
+        ).publish()
+
+        self.pose_pub = self.nettable.getStructTopic("Pose", Pose2d).publish()
+        self.setpoint_pub = self.nettable.getStructTopic(
+            "Setpoint", ChassisSpeeds
+        ).publish()
+
+    def periodic(self):
+        self.run_chassis_speeds(self.setpoint)
+        new_pose = self.odometry.update(self.get_angle(), self.get_module_positions())
+        # self.field.setRobotPose(new_pose)
+        self.swerve_pub.set(self.get_states())
+        self.pose_pub.set(new_pose)
+        self.setpoint_pub.set(self.setpoint)
+        return super().periodic()
+
+    def simulationPeriodic(self):
+        speeds = self.kinematics.toChassisSpeeds(self.get_states())
+        self.gyro.setAngleAdjustment(self.gyro.getAngle() + speeds.omega_dps * 0.02)
+        return super().simulationPeriodic()
+
+    def get_module_positions(self) -> list[SwerveModulePosition]:
+        return [
+            self.fl.get_position(),
+            self.fr.get_position(),
+            self.bl.get_position(),
+            self.br.get_position(),
+        ]
+
+    def get_angle(self) -> Rotation2d:
+        if self.should_flip():
+            return self.gyro.getRotation2d() + Rotation2d.fromDegrees(180)
+        else:
+            return self.gyro.getRotation2d()
+
+    def get_states(self) -> list[SwerveModuleState]:
+        return [
+            self.fl.get_state(),
+            self.fr.get_state(),
+            self.bl.get_state(),
+            self.br.get_state(),
+        ]
+
+    def stop(self) -> None:
+        self.run_chassis_speeds(ChassisSpeeds())
+
+    def run_chassis_speeds(self, speeds: ChassisSpeeds) -> None:
+        speeds = ChassisSpeeds.discretize(speeds, 0.02)
+        self.setpoint = speeds
+        fl, fr, bl, br = self.kinematics.toSwerveModuleStates(speeds)
+        self.kinematics.desaturateWheelSpeeds([fl, fr, bl, br], self.max_speed)
+        self.fl.set_state(fl)
+        self.fr.set_state(fr)
+        self.bl.set_state(bl)
+        self.br.set_state(br)
+
+    def run_percent(
+        self, tx: float, ty: float, omega: float, field_relative: bool
+    ) -> None:
+        self.nettable.putNumber("tx", tx)
+        self.nettable.putNumber("ty", ty)
+        self.nettable.putNumber("omega", omega)
+        if field_relative:
+            speeds = ChassisSpeeds.fromFieldRelativeSpeeds(
+                tx * self.max_speed,
+                ty * self.max_speed,
+                omega * self.max_angular_speed,
+                self.get_angle(),
+            )
+        else:
+            speeds = ChassisSpeeds.fromRobotRelativeSpeeds(
+                tx * self.max_speed,
+                ty * self.max_speed,
+                omega * self.max_angular_speed,
+                self.get_angle(),
+            )
+
+        self.run_chassis_speeds(speeds)
