@@ -16,7 +16,7 @@ from phoenix6.hardware import TalonFX
 from phoenix6.hardware.cancoder import CANcoder
 from phoenix6.configs import FeedbackConfigs, MagnetSensorConfigs
 from phoenix6.controls import VelocityDutyCycle, PositionDutyCycle
-from phoenix6.signals import FeedbackSensorSourceValue
+from phoenix6.signals import FeedbackSensorSourceValue, NeutralModeValue
 
 from constants import ModuleConstants
 import constants
@@ -201,6 +201,16 @@ class SwerveModule(Subsystem):
 
         self.setpoint = state
         self.commanded_pub.set(state)
+
+    def set_drive_idle(self, coast: bool) -> None:
+        self.drive_motor.setNeutralMode(
+            NeutralModeValue.COAST if coast else NeutralModeValue.BRAKE
+        )
+
+    def set_turn_idle(self, coast: bool) -> None:
+        self.turn_motor.setNeutralMode(
+            NeutralModeValue.COAST if coast else NeutralModeValue.BRAKE
+        )
 
     def rotations_to_meters(self, rotations: float) -> meters:
         return SwerveModule.rotations_to_meters(rotations)

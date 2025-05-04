@@ -2,7 +2,7 @@ from subsystems.swerve_module import SwerveModule, ModuleLocation
 
 from typing import Callable
 
-from commands2 import Subsystem
+from commands2 import InstantCommand, Subsystem
 
 from wpimath.kinematics import (
     SwerveDrive4Kinematics,
@@ -78,7 +78,7 @@ class Drivetrain(Subsystem):
         self.run_chassis_speeds(self.setpoint)
         new_pose = self.odometry.update(self.get_angle(), self.get_module_positions())
         # self.field.setRobotPose(new_pose)
-        self.swerve_pub.set(self.get_states())
+        self.swerve_pub.set(list(self.get_states()))
         self.pose_pub.set(new_pose)
         self.setpoint_pub.set(self.setpoint)
         return super().periodic()
@@ -88,13 +88,20 @@ class Drivetrain(Subsystem):
         self.gyro.setAngleAdjustment(self.gyro.getAngle() + speeds.omega_dps * 0.02)
         return super().simulationPeriodic()
 
-    def get_module_positions(self) -> list[SwerveModulePosition]:
-        return [
+    def get_module_positions(
+        self,
+    ) -> tuple[
+        SwerveModulePosition,
+        SwerveModulePosition,
+        SwerveModulePosition,
+        SwerveModulePosition,
+    ]:
+        return (
             self.fl.get_position(),
             self.fr.get_position(),
             self.bl.get_position(),
             self.br.get_position(),
-        ]
+        )
 
     def get_angle(self) -> Rotation2d:
         if self.should_flip():
@@ -102,22 +109,29 @@ class Drivetrain(Subsystem):
         else:
             return self.gyro.getRotation2d()
 
-    def get_states(self) -> list[SwerveModuleState]:
-        return [
+    def get_states(
+        self,
+    ) -> tuple[
+        SwerveModuleState, SwerveModuleState, SwerveModuleState, SwerveModuleState
+    ]:
+        return (
             self.fl.get_state(),
             self.fr.get_state(),
             self.bl.get_state(),
             self.br.get_state(),
-        ]
+        )
 
     def stop(self) -> None:
         self.run_chassis_speeds(ChassisSpeeds())
+
+    def stop_command(self) -> InstantCommand:
+        return InstantCommand(self.stop)
 
     def run_chassis_speeds(self, speeds: ChassisSpeeds) -> None:
         speeds = ChassisSpeeds.discretize(speeds, 0.02)
         self.setpoint = speeds
         fl, fr, bl, br = self.kinematics.toSwerveModuleStates(speeds)
-        self.kinematics.desaturateWheelSpeeds([fl, fr, bl, br], self.max_speed)
+        self.kinematics.desaturateWheelSpeeds((fl, fr, bl, br), self.max_speed)
         self.fl.set_state(fl)
         self.fr.set_state(fr)
         self.bl.set_state(bl)
@@ -141,3 +155,30 @@ class Drivetrain(Subsystem):
                 tx * self.max_speed, ty * self.max_speed, omega * self.max_speed
             )
         self.run_chassis_speeds(speeds)
+
+    def reset_pose(self, new_pose: Pose2d) -> None:
+        self.odometry.resetPose(new_pose)
+
+    def reset_gyro(self, new_angle: Rotation2d) -> None:
+        self.gyro.setAngleAdjustment(new_angle.degrees())
+
+    def reset_gyro_command(self, new_angle: Rotation2d) -> InstantCommand:
+        return InstantCommand(lambda: self.reset_gyro(new_angle))
+
+    def set_drive_idle(self, coast: bool) -> None:
+        self.fl.set_drive_idle(coast)
+        self.fr.set_drive_idle(coast)
+        self.bl.set_drive_idle(coast)
+        self.br.set_drive_idle(coast)
+
+    def set_turn_idle(self, coast: bool) -> None:
+        self.fl.set_turn_idle(coast)
+        self.fr.set_turn_idle(coast)
+        self.bl.set_turn_idle(coast)
+        self.br.set_turn_idle(coast)
+
+    def set_drive_idle_command(self, coast: bool) -> InstantCommand:
+        return InstantCommand(lambda: self.set_drive_idle(coast))
+
+    def set_turn_idle_command(self, coast: bool) -> InstantCommand:
+        return InstantCommand(lambda: self.set_turn_idle(coast))
