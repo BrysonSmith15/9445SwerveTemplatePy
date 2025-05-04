@@ -137,11 +137,7 @@ class Drivetrain(Subsystem):
                 self.get_angle(),
             )
         else:
-            speeds = ChassisSpeeds.fromRobotRelativeSpeeds(
-                tx * self.max_speed,
-                ty * self.max_speed,
-                omega * self.max_angular_speed,
-                self.get_angle(),
+            speeds = ChassisSpeeds(
+                tx * self.max_speed, ty * self.max_speed, omega * self.max_speed
             )
-
         self.run_chassis_speeds(speeds)

@@ -18,22 +18,12 @@ class Robot(TimedRobot):
     def __init__(self):
         super().__init__()
         self.robotcontainer = RobotContainer()
-        self.test_module = SwerveModule(ModuleLocation.BACK_LEFT)
-        self.drivetrain = Drivetrain()
-        self.joystick = XboxController(0)
 
     def robotInit(self):
         DataLogManager.start()
 
     def robotPeriodic(self):
         CommandScheduler.getInstance().run()
-
-        self.drivetrain.run_percent(
-            applyDeadband(self.joystick.getLeftY(), 0.05),
-            applyDeadband(self.joystick.getLeftX(), 0.05),
-            applyDeadband(self.joystick.getRightX(), 0.05),
-            True,
-        )
 
     def autonomousInit(self):
         self.auto_command = self.robotcontainer.get_auto()

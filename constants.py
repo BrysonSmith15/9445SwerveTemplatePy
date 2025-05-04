@@ -68,7 +68,7 @@ back_right: ModuleConstants = ModuleConstants(
     10, 11, 12, 0, Translation2d.fromFeet(-14 / 12, -14 / 12)
 )
 
-drive_ratio: float = 1 / 8.14
+drive_ratio: float = 1 / 1  # 8.14
 turn_ratio: float = 7 / 150
 
 drivebase_width: meters = inchesToMeters(28)
